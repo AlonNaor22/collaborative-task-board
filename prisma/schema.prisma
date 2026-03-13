@@ -1,0 +1,35 @@
+// Prisma Schema File
+// Think of this as a "class definition" for your database tables.
+// Each `model` below becomes a PostgreSQL table, and Prisma
+// auto-generates TypeScript types from it.
+
+// Generator: tells Prisma to generate a TypeScript client
+// so you can do prisma.user.findMany() etc.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+// Datasource: which database engine and where to find it.
+// It reads DATABASE_URL from your .env file.
+datasource db {
+  provider = "postgresql"
+}
+
+// ──────────────────────────────────────────────
+// User Model
+// ──────────────────────────────────────────────
+// This is like a Java class that maps to a "users" table.
+// Prisma uses the model name for the table (lowercased + pluralized
+// by convention in the DB, but you query it as `prisma.user`).
+model User {
+  id             String   @id @default(cuid())
+  name           String
+  email          String   @unique
+  hashedPassword String
+  image          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@map("users") // Maps this model to a table called "users" (SQL convention: lowercase plural)
+}
