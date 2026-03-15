@@ -17,11 +17,6 @@ import { hash } from "bcryptjs";
 // - After cloning the project on a new machine
 // - Whenever you want fresh test data
 //
-// HOW IT WORKS:
-// 1. Prisma reads the `prisma.seed` field in package.json
-// 2. That tells it to run: `tsx prisma/seed.ts`
-// 3. tsx is like node but can run TypeScript files directly
-//
 // WHY WE DON'T IMPORT FROM `@/server/db`:
 // The seed script runs OUTSIDE of Next.js (it's a standalone
 // script). The `@/` path alias only works inside Next.js's
@@ -29,21 +24,12 @@ import { hash } from "bcryptjs";
 // same adapter pattern, using a relative import.
 
 // ─── Create Prisma Client ───
-// Same setup as src/server/db.ts but with relative imports
-// since we're outside the Next.js bundler.
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
 });
 const prisma = new PrismaClient({ adapter });
 
 // ─── Test Users ───
-// Each user has a simple password for easy testing.
-// In a real app, you'd NEVER commit real passwords — but these
-// are fake accounts for local development only.
-//
-// bcrypt hash rounds = 10 (same as in our auth.ts).
-// More rounds = slower but more secure. 10 is the standard
-// for development; production apps sometimes use 12.
 const testUsers = [
   {
     name: "Alice Johnson",
@@ -62,18 +48,42 @@ const testUsers = [
   },
 ];
 
+// ─── Test Boards ───
+// Each board has a title, description, color, and member list.
+// Alice owns all boards. Bob and Charlie are members of some.
+const testBoards = [
+  {
+    title: "Sprint 23",
+    description: "Current sprint tasks for the team. Bug fixes and new features.",
+    color: "#3B82F6", // Blue
+    ownerEmail: "alice@example.com",
+    memberEmails: ["bob@example.com", "charlie@example.com"],
+  },
+  {
+    title: "Marketing Campaign",
+    description: "Q2 marketing campaign planning and execution.",
+    color: "#22C55E", // Green
+    ownerEmail: "alice@example.com",
+    memberEmails: ["bob@example.com"],
+  },
+  {
+    title: "Personal Tasks",
+    description: null,
+    color: "#A855F7", // Purple
+    ownerEmail: "alice@example.com",
+    memberEmails: [], // Only Alice — a private board
+  },
+];
+
 // ─── Main Seed Function ───
 async function main() {
   console.log("🌱 Seeding database...\n");
 
+  // ── Step 1: Create Users ──
+  console.log("👤 Creating users...");
+  const userMap = new Map<string, string>(); // email → userId
+
   for (const user of testUsers) {
-    // `upsert` = "update OR insert"
-    // - If a user with this email already exists → update their data
-    // - If no user with this email → create a new one
-    //
-    // This makes the seed script idempotent — you can run it
-    // multiple times without getting "duplicate email" errors.
-    // (Idempotent = running it once or 10 times gives the same result.)
     const hashedPassword = await hash(user.password, 10);
 
     const created = await prisma.user.upsert({
@@ -89,18 +99,73 @@ async function main() {
       },
     });
 
+    userMap.set(user.email, created.id);
     console.log(`  ✅ ${created.name} (${created.email})`);
   }
 
+  // ── Step 2: Create Boards + Members ──
+  console.log("\n📋 Creating boards...");
+
+  for (const boardData of testBoards) {
+    const ownerId = userMap.get(boardData.ownerEmail)!;
+
+    // First, check if a board with this title already exists for this owner.
+    // We use findFirst instead of upsert because boards don't have a
+    // unique constraint on title (multiple users could have boards with
+    // the same name).
+    const existing = await prisma.board.findFirst({
+      where: {
+        title: boardData.title,
+        ownerId,
+      },
+    });
+
+    if (existing) {
+      // Update existing board
+      await prisma.board.update({
+        where: { id: existing.id },
+        data: {
+          description: boardData.description,
+          color: boardData.color,
+        },
+      });
+      console.log(`  ✅ ${boardData.title} (updated)`);
+      continue;
+    }
+
+    // Create board + owner membership in one transaction
+    const board = await prisma.board.create({
+      data: {
+        title: boardData.title,
+        description: boardData.description,
+        color: boardData.color,
+        ownerId,
+        members: {
+          create: [
+            // Owner is always a member
+            { userId: ownerId, role: "OWNER" },
+            // Add additional members
+            ...boardData.memberEmails.map((email) => ({
+              userId: userMap.get(email)!,
+              role: "MEMBER" as const,
+            })),
+          ],
+        },
+      },
+    });
+
+    console.log(
+      `  ✅ ${board.title} (${boardData.memberEmails.length + 1} members)`
+    );
+  }
+
   console.log("\n🌱 Seeding complete!");
-  console.log("   You can log in with any of the above emails");
+  console.log("   You can log in with any user email");
   console.log('   and password: "password123"');
+  console.log("\n   Alice has 3 boards, Bob sees 2, Charlie sees 1.");
 }
 
 // ─── Run & Cleanup ───
-// .finally() ensures the database connection is closed even if
-// something crashes. Without this, the script might hang because
-// the connection stays open (Node.js won't exit with open handles).
 main()
   .catch((e) => {
     console.error("❌ Seed failed:", e);

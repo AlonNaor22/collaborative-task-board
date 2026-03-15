@@ -31,5 +31,100 @@ model User {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  @@map("users") // Maps this model to a table called "users" (SQL convention: lowercase plural)
+  // ─── Relations ───
+  // These aren't columns in the database — they're Prisma's way of
+  // expressing relationships so you can do things like:
+  //   const user = await prisma.user.findUnique({
+  //     where: { id },
+  //     include: { ownedBoards: true, boardMemberships: true }
+  //   });
+  //
+  // Think of it like Java's @OneToMany annotation — it tells the ORM
+  // "this User can have many Boards they own and many BoardMember records."
+  ownedBoards      Board[]       @relation("BoardOwner")
+  boardMemberships BoardMember[]
+
+  @@map("users")
+}
+
+// ──────────────────────────────────────────────
+// Role Enum
+// ──────────────────────────────────────────────
+// PostgreSQL supports native enums (unlike MySQL which fakes them).
+// Prisma creates a real PostgreSQL enum type in the database.
+//
+// OWNER: Full control — can delete the board, manage members
+// ADMIN: Can edit board settings and manage members (but can't delete)
+// MEMBER: Can view and interact with cards (the default role)
+enum Role {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+// ──────────────────────────────────────────────
+// Board Model
+// ──────────────────────────────────────────────
+// Represents a Kanban board (like a Trello board or Jira project).
+// Each board has columns (Phase 3) which contain cards.
+model Board {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  // Optional — not every board needs a description
+  color       String   @default("#3B82F6") // Hex color for the card accent (defaults to blue)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // ─── Owner Relation ───
+  // Every board has one owner (the person who created it).
+  // `ownerId` is a foreign key pointing to User.id.
+  //
+  // The @relation("BoardOwner") name matches the relation on User.ownedBoards.
+  // This is needed because User has TWO relations to Board-related models,
+  // and Prisma needs to know which is which (like naming your foreign keys in SQL).
+  ownerId String
+  owner   User   @relation("BoardOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // ─── Members ───
+  // A board has many members (via the BoardMember join table).
+  members BoardMember[]
+
+  @@map("boards")
+}
+
+// ──────────────────────────────────────────────
+// BoardMember Model (Join Table)
+// ──────────────────────────────────────────────
+// This is a "join table" (also called "junction table" or "pivot table").
+// You learned about these in database normalization:
+//
+//   User ←── BoardMember ──→ Board
+//        (many-to-many with extra data)
+//
+// WHY NOT just an array of user IDs on Board?
+// Because we need to store EXTRA DATA about the relationship:
+// the user's role (OWNER/ADMIN/MEMBER). A simple array can't do that.
+//
+// This is exactly like an "enrollment" table in a university DB:
+//   Student ←── Enrollment ──→ Course
+//   (with extra data: grade, semester, etc.)
+model BoardMember {
+  id       String   @id @default(cuid())
+  role     Role     @default(MEMBER)
+  joinedAt DateTime @default(now())
+
+  // ─── Foreign Keys ───
+  userId  String
+  user    User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  boardId String
+  board   Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  // ─── Unique Constraint ───
+  // A user can only be a member of a board ONCE.
+  // Without this, you could accidentally add Alice to "Sprint 23" twice.
+  // This is like a composite primary key in SQL:
+  //   PRIMARY KEY (user_id, board_id)
+  // But we keep a separate `id` for easier querying.
+  @@unique([userId, boardId])
+  @@map("board_members")
 }

@@ -61,16 +61,22 @@ export const publicProcedure = t.procedure;
 // If there IS a session, we add the user to the context so procedures
 // can do `ctx.user.id` without null-checking every time.
 export const protectedProcedure = t.procedure.use(async ({ ctx, next }) => {
-  if (!ctx.session?.user) {
+  if (!ctx.session?.user?.id) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
   // `next()` continues to the actual procedure.
-  // We pass an enriched context with `user` guaranteed to be non-null.
+  // We pass an enriched context with `user` guaranteed to have an id.
+  // The `as string` assertion is safe because we checked above.
+  // Without this, TypeScript would keep `id` as `string | undefined`
+  // and every procedure would need its own null check.
   return next({
     ctx: {
       session: ctx.session,
-      user: ctx.session.user,
+      user: {
+        ...ctx.session.user,
+        id: ctx.session.user.id as string,
+      },
     },
   });
 });

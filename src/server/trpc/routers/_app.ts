@@ -1,5 +1,6 @@
 import { createTRPCRouter } from "../init";
 import { authRouter } from "./auth";
+import { boardRouter } from "./board";
 
 // ──────────────────────────────────────────────
 // Root App Router
@@ -11,13 +12,13 @@ import { authRouter } from "./auth";
 // When the frontend calls `trpc.auth.register.mutate(...)`,
 // tRPC routes it: appRouter → authRouter → register
 //
-// As we add more features, we'll add more routers here:
-//   board: boardRouter,    (Phase 2)
-//   column: columnRouter,  (Phase 3)
-//   card: cardRouter,      (Phase 3)
+// With the board router, the frontend can now call:
+//   trpc.board.list.useQuery()
+//   trpc.board.create.useMutation()
 //   etc.
 export const appRouter = createTRPCRouter({
   auth: authRouter,
+  board: boardRouter,
 });
 
 // Export the router's TYPE (not the router itself).
