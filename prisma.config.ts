@@ -7,6 +7,10 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // The seed command runs when you execute `npx prisma db seed`.
+    // tsx runs TypeScript files directly — like ts-node but faster.
+    // This is separate from Next.js, so we can't use @/ path aliases.
+    seed: "npx tsx prisma/seed.ts",
   },
   datasource: {
     url: process.env["DATABASE_URL"],
