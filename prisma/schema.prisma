@@ -43,6 +43,7 @@ model User {
   // "this User can have many Boards they own and many BoardMember records."
   ownedBoards      Board[]       @relation("BoardOwner")
   boardMemberships BoardMember[]
+  createdCards     Card[]        @relation("CardCreator")
 
   @@map("users")
 }
@@ -89,6 +90,11 @@ model Board {
   // A board has many members (via the BoardMember join table).
   members BoardMember[]
 
+  // ─── Columns ───
+  // A board has many columns (To Do, In Progress, Done, etc.).
+  // Added in Phase 3 for the Kanban board view.
+  columns Column[]
+
   @@map("boards")
 }
 
@@ -127,4 +133,78 @@ model BoardMember {
   // But we keep a separate `id` for easier querying.
   @@unique([userId, boardId])
   @@map("board_members")
+}
+
+// ──────────────────────────────────────────────
+// Column Model
+// ──────────────────────────────────────────────
+// Represents a column on a Kanban board (e.g., "To Do", "In Progress", "Done").
+// Columns are ordered left-to-right by `position`.
+//
+// Think of it like a linked list stored as an array:
+//   position 0 = leftmost column, position 1 = next, etc.
+// When you drag a column to reorder, we update the positions of ALL columns
+// in that board (like re-indexing an array after an insert/remove).
+model Column {
+  id       String @id @default(cuid())
+  title    String
+  position Int    // 0-based ordering: 0 = leftmost, 1 = next, etc.
+
+  // ─── Board Relation ───
+  // Every column belongs to exactly one board.
+  // onDelete: Cascade means if the board is deleted, all its columns go too.
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  // ─── Cards ───
+  // A column has many cards, ordered by their `position` field.
+  cards Card[]
+
+  // ─── Index ───
+  // We frequently query "all columns for board X, ordered by position",
+  // so this composite index speeds up that query.
+  // Think of it like a database index on (boardId, position) in SQL:
+  //   CREATE INDEX idx_columns_board_pos ON columns(board_id, position);
+  @@index([boardId, position])
+  @@map("columns")
+}
+
+// ──────────────────────────────────────────────
+// Card Model
+// ──────────────────────────────────────────────
+// Represents a task card within a column (like a sticky note on a Kanban board).
+// Cards are the core unit of work — they have a title, optional description,
+// and are ordered top-to-bottom by `position` within their column.
+//
+// In later phases, cards will gain: labels, assignees, comments, attachments, due dates.
+// We include `description` and `dueDate` now to avoid a migration later in Phase 4.
+model Card {
+  id          String    @id @default(cuid())
+  title       String
+  description String?   // Optional rich text (Markdown in Phase 4)
+  position    Int       // 0-based ordering within the column
+  dueDate     DateTime? // Optional deadline (used in Phase 4)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // ─── Column Relation ───
+  // Every card belongs to exactly one column.
+  // When a card is dragged to a different column, we update this foreign key.
+  // onDelete: Cascade means if the column is deleted, all its cards go too.
+  // (And since columns cascade from boards, deleting a board removes everything.)
+  columnId String
+  column   Column @relation(fields: [columnId], references: [id], onDelete: Cascade)
+
+  // ─── Creator Relation ───
+  // Who created this card. Useful for activity logs and permissions.
+  // We use a named relation ("CardCreator") because User will eventually have
+  // MULTIPLE relations to Card (creator, assignees), and Prisma needs to
+  // distinguish them — same reason we named "BoardOwner" earlier.
+  creatorId String
+  creator   User   @relation("CardCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+
+  // ─── Index ───
+  // Same rationale as columns: we always query "cards in column X, ordered by position".
+  @@index([columnId, position])
+  @@map("cards")
 }
