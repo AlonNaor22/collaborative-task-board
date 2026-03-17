@@ -1,6 +1,7 @@
 import { createTRPCRouter } from "../init";
 import { authRouter } from "./auth";
 import { boardRouter } from "./board";
+import { columnRouter } from "./column";
 
 // ──────────────────────────────────────────────
 // Root App Router
@@ -16,9 +17,15 @@ import { boardRouter } from "./board";
 //   trpc.board.list.useQuery()
 //   trpc.board.create.useMutation()
 //   etc.
+//
+// The column router handles Kanban columns:
+//   trpc.column.list.useQuery({ boardId })
+//   trpc.column.create.useMutation()
+//   trpc.column.reorder.useMutation()
 export const appRouter = createTRPCRouter({
   auth: authRouter,
   board: boardRouter,
+  column: columnRouter,
 });
 
 // Export the router's TYPE (not the router itself).
