@@ -2,6 +2,7 @@ import { createTRPCRouter } from "../init";
 import { authRouter } from "./auth";
 import { boardRouter } from "./board";
 import { columnRouter } from "./column";
+import { cardRouter } from "./card";
 
 // ──────────────────────────────────────────────
 // Root App Router
@@ -22,10 +23,15 @@ import { columnRouter } from "./column";
 //   trpc.column.list.useQuery({ boardId })
 //   trpc.column.create.useMutation()
 //   trpc.column.reorder.useMutation()
+//
+// The card router handles task cards:
+//   trpc.card.create.useMutation()
+//   trpc.card.move.useMutation()
 export const appRouter = createTRPCRouter({
   auth: authRouter,
   board: boardRouter,
   column: columnRouter,
+  card: cardRouter,
 });
 
 // Export the router's TYPE (not the router itself).
