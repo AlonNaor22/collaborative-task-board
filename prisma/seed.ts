@@ -51,6 +51,10 @@ const testUsers = [
 // ─── Test Boards ───
 // Each board has a title, description, color, and member list.
 // Alice owns all boards. Bob and Charlie are members of some.
+//
+// NEW IN PHASE 3: Each board now has columns and cards.
+// Columns define the workflow (To Do → In Progress → Done).
+// Cards are the actual tasks, placed inside columns.
 const testBoards = [
   {
     title: "Sprint 23",
@@ -58,6 +62,30 @@ const testBoards = [
     color: "#3B82F6", // Blue
     ownerEmail: "alice@example.com",
     memberEmails: ["bob@example.com", "charlie@example.com"],
+    // Columns with their cards. Position = array index (0-based).
+    columns: [
+      {
+        title: "To Do",
+        cards: [
+          { title: "Set up CI/CD pipeline", description: "Configure GitHub Actions for automated testing and deployment." },
+          { title: "Write unit tests for auth", description: "Cover login, register, and session management flows." },
+          { title: "Design settings page", description: null },
+        ],
+      },
+      {
+        title: "In Progress",
+        cards: [
+          { title: "Build Kanban board UI", description: "Implement drag-and-drop columns and cards using @dnd-kit." },
+          { title: "Fix login redirect bug", description: "Users are redirected to / instead of /boards after login." },
+        ],
+      },
+      {
+        title: "Done",
+        cards: [
+          { title: "Set up project scaffolding", description: "Next.js, Prisma, tRPC, Auth.js — all configured." },
+        ],
+      },
+    ],
   },
   {
     title: "Marketing Campaign",
@@ -65,6 +93,25 @@ const testBoards = [
     color: "#22C55E", // Green
     ownerEmail: "alice@example.com",
     memberEmails: ["bob@example.com"],
+    columns: [
+      {
+        title: "Ideas",
+        cards: [
+          { title: "Blog post series on product updates", description: null },
+          { title: "Partner with tech influencers", description: "Reach out to 5-10 influencers in the dev tools space." },
+        ],
+      },
+      {
+        title: "Planning",
+        cards: [
+          { title: "Create Q2 content calendar", description: "Map out blog posts, social media, and email campaigns." },
+        ],
+      },
+      {
+        title: "Executing",
+        cards: [], // Empty column — no tasks started yet
+      },
+    ],
   },
   {
     title: "Personal Tasks",
@@ -72,6 +119,10 @@ const testBoards = [
     color: "#A855F7", // Purple
     ownerEmail: "alice@example.com",
     memberEmails: [], // Only Alice — a private board
+    columns: [
+      { title: "To Do", cards: [{ title: "Grocery shopping", description: null }] },
+      { title: "Done", cards: [] },
+    ],
   },
 ];
 
@@ -133,7 +184,15 @@ async function main() {
       continue;
     }
 
-    // Create board + owner membership in one transaction
+    // Create board + owner membership + columns + cards in one nested create.
+    //
+    // Prisma's nested `create` lets us build the entire hierarchy in a
+    // single database call. Under the hood, Prisma wraps this in a
+    // transaction, so if any part fails, nothing is created.
+    //
+    // The structure mirrors our data model:
+    //   Board → Members[]
+    //         → Columns[] → Cards[]
     const board = await prisma.board.create({
       data: {
         title: boardData.title,
@@ -151,11 +210,31 @@ async function main() {
             })),
           ],
         },
+        // ─── NEW: Create columns with their cards ───
+        // Each column gets a `position` (its index in the array).
+        // Each card inside gets a `position` too (top to bottom).
+        // The `creatorId` is the board owner — in a real app, different
+        // users would create different cards, but for test data this is fine.
+        columns: {
+          create: boardData.columns.map((col, colIndex) => ({
+            title: col.title,
+            position: colIndex,
+            cards: {
+              create: col.cards.map((card, cardIndex) => ({
+                title: card.title,
+                description: card.description,
+                position: cardIndex,
+                creatorId: ownerId,
+              })),
+            },
+          })),
+        },
       },
     });
 
+    const cardCount = boardData.columns.reduce((sum, col) => sum + col.cards.length, 0);
     console.log(
-      `  ✅ ${board.title} (${boardData.memberEmails.length + 1} members)`
+      `  ✅ ${board.title} (${boardData.memberEmails.length + 1} members, ${boardData.columns.length} columns, ${cardCount} cards)`
     );
   }
 
