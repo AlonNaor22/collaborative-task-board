@@ -3,6 +3,7 @@ import { authRouter } from "./auth";
 import { boardRouter } from "./board";
 import { columnRouter } from "./column";
 import { cardRouter } from "./card";
+import { labelRouter } from "./label";
 
 // ──────────────────────────────────────────────
 // Root App Router
@@ -32,6 +33,7 @@ export const appRouter = createTRPCRouter({
   board: boardRouter,
   column: columnRouter,
   card: cardRouter,
+  label: labelRouter,
 });
 
 // Export the router's TYPE (not the router itself).

@@ -30,6 +30,27 @@ import { create } from "zustand";
 // We define the shape of our data here.
 // These mirror the Prisma types but without the database-specific fields.
 
+export type CardLabel = {
+  cardId: string;
+  labelId: string;
+  label: {
+    id: string;
+    name: string;
+    color: string;
+    boardId: string;
+  };
+};
+
+export type CardAssignee = {
+  cardId: string;
+  userId: string;
+  user: {
+    id: string;
+    name: string | null;
+    image: string | null;
+  };
+};
+
 export type CardData = {
   id: string;
   title: string;
@@ -43,6 +64,9 @@ export type CardData = {
     name: string | null;
     image: string | null;
   };
+  // Phase 4: labels and assignees (populated from column.list include)
+  labels: CardLabel[];
+  assignees: CardAssignee[];
 };
 
 export type ColumnData = {

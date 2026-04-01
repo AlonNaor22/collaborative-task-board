@@ -39,6 +39,7 @@ interface KanbanColumnProps {
   isOwnerOrAdmin: boolean;
   onCardDelete: (cardId: string, columnId: string) => void;
   isDeletingCard?: string | null; // cardId being deleted
+  onCardClick?: (cardId: string) => void;
 }
 
 export function KanbanColumn({
@@ -47,6 +48,7 @@ export function KanbanColumn({
   isOwnerOrAdmin,
   onCardDelete,
   isDeletingCard,
+  onCardClick,
 }: KanbanColumnProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -182,6 +184,7 @@ export function KanbanColumn({
               card={card}
               onDelete={(cardId) => onCardDelete(cardId, column.id)}
               isDeleting={isDeletingCard === card.id}
+              onClick={onCardClick}
             />
           ))}
         </SortableContext>

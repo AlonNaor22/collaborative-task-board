@@ -41,9 +41,11 @@ model User {
   //
   // Think of it like Java's @OneToMany annotation — it tells the ORM
   // "this User can have many Boards they own and many BoardMember records."
-  ownedBoards      Board[]       @relation("BoardOwner")
+  ownedBoards      Board[]         @relation("BoardOwner")
   boardMemberships BoardMember[]
-  createdCards     Card[]        @relation("CardCreator")
+  createdCards     Card[]          @relation("CardCreator")
+  // Phase 4: cards this user is assigned to (via CardAssignee join table)
+  assignedCards    CardAssignee[]
 
   @@map("users")
 }
@@ -94,6 +96,8 @@ model Board {
   // A board has many columns (To Do, In Progress, Done, etc.).
   // Added in Phase 3 for the Kanban board view.
   columns Column[]
+  // Phase 4: labels that belong to this board (shared across all cards)
+  labels  Label[]
 
   @@map("boards")
 }
@@ -203,8 +207,65 @@ model Card {
   creatorId String
   creator   User   @relation("CardCreator", fields: [creatorId], references: [id], onDelete: Cascade)
 
+  // Phase 4: labels and assignees (many-to-many via join tables)
+  labels    CardLabel[]
+  assignees CardAssignee[]
+
   // ─── Index ───
   // Same rationale as columns: we always query "cards in column X, ordered by position".
   @@index([columnId, position])
   @@map("cards")
+}
+
+// ──────────────────────────────────────────────
+// Label Model
+// ──────────────────────────────────────────────
+// Labels are board-scoped colored tags (like GitHub issue labels).
+// A label belongs to one board but can be applied to many cards.
+// Cards reference labels through the CardLabel join table.
+model Label {
+  id      String @id @default(cuid())
+  name    String
+  color   String // Hex color, e.g. "#EF4444"
+
+  boardId String
+  board   Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  cards   CardLabel[]
+
+  @@map("labels")
+}
+
+// ──────────────────────────────────────────────
+// CardLabel Model (Join Table)
+// ──────────────────────────────────────────────
+// Many-to-many between Card and Label.
+// A card can have many labels; a label can be on many cards.
+// Uses a composite primary key instead of a separate id column.
+model CardLabel {
+  cardId  String
+  labelId String
+
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@map("card_labels")
+}
+
+// ──────────────────────────────────────────────
+// CardAssignee Model (Join Table)
+// ──────────────────────────────────────────────
+// Many-to-many between Card and User.
+// A card can have many assignees; a user can be assigned to many cards.
+// Only board members can be assigned (enforced in the tRPC router).
+model CardAssignee {
+  cardId String
+  userId String
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, userId])
+  @@map("card_assignees")
 }

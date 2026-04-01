@@ -95,6 +95,12 @@ export const columnRouter = createTRPCRouter({
               creator: {
                 select: { id: true, name: true, image: true },
               },
+              labels: {
+                include: { label: true },
+              },
+              assignees: {
+                include: { user: { select: { id: true, name: true, image: true } } },
+              },
             },
           },
         },

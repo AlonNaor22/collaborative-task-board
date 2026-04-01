@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KanbanColumn } from "./kanban-column";
 import { KanbanCard } from "./kanban-card";
+import { CardDetailModal } from "./card-detail-modal";
 import { useBoardStore, type ColumnData, type CardData } from "@/hooks/use-board-store";
 
 // ──────────────────────────────────────────────
@@ -82,6 +83,9 @@ export function KanbanBoard({ boardId, userRole }: KanbanBoardProps) {
       setColumns(serverColumns as ColumnData[]);
     }
   }, [serverColumns, setColumns]);
+
+  // ─── Card detail modal state ───
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   // ─── Drag state ───
   const [activeCard, setActiveCard] = useState<CardData | null>(null);
@@ -306,6 +310,7 @@ export function KanbanBoard({ boardId, userRole }: KanbanBoardProps) {
                   ? (deleteCardMutation.variables as { id: string } | undefined)?.id ?? null
                   : null
               }
+              onCardClick={(cardId) => setSelectedCardId(cardId)}
             />
           ))}
         </SortableContext>
@@ -385,6 +390,20 @@ export function KanbanBoard({ boardId, userRole }: KanbanBoardProps) {
           </DragOverlay>,
           document.body
         )}
+
+      {/* ─── Card Detail Modal ───
+        Renders when the user clicks a card.
+        onUpdated re-fetches the column list so label/assignee changes
+        are reflected in the card previews immediately.
+      */}
+      {selectedCardId && (
+        <CardDetailModal
+          cardId={selectedCardId}
+          boardId={boardId}
+          onClose={() => setSelectedCardId(null)}
+          onUpdated={() => queryClient.invalidateQueries({ queryKey: columnListKey })}
+        />
+      )}
     </DndContext>
   );
 }

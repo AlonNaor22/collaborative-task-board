@@ -106,7 +106,153 @@ const moveCardSchema = z.object({
   sourceCardIds: z.array(z.string()).optional(),
 });
 
+// ─── Helper: Get boardId from a card (traverses Card → Column → Board) ───
+async function getBoardIdFromCard(cardId: string): Promise<string> {
+  const card = await db.card.findUnique({
+    where: { id: cardId },
+    select: { column: { select: { boardId: true } } },
+  });
+  if (!card) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+  }
+  return card.column.boardId;
+}
+
 export const cardRouter = createTRPCRouter({
+  // ─── GET BY ID ───
+  // Fetch a single card with full detail: labels, assignees, creator.
+  // Used by the card detail modal when the user clicks a card.
+  getById: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const boardId = await getBoardIdFromCard(input.id);
+      await requireBoardMember(ctx.user.id, boardId);
+
+      const card = await db.card.findUnique({
+        where: { id: input.id },
+        include: {
+          creator: { select: { id: true, name: true, image: true } },
+          labels: {
+            include: { label: true },
+          },
+          assignees: {
+            include: { user: { select: { id: true, name: true, image: true } } },
+          },
+        },
+      });
+
+      if (!card) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+      }
+
+      return card;
+    }),
+
+  // ─── SET DUE DATE ───
+  // Set or clear a card's due date.
+  setDueDate: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        dueDate: z.coerce.date().nullable(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const boardId = await getBoardIdFromCard(input.id);
+      await requireBoardMember(ctx.user.id, boardId);
+
+      return db.card.update({
+        where: { id: input.id },
+        data: { dueDate: input.dueDate },
+      });
+    }),
+
+  // ─── ADD LABEL ───
+  // Apply an existing board label to a card.
+  // We verify the label belongs to the same board as the card.
+  addLabel: protectedProcedure
+    .input(z.object({ cardId: z.string(), labelId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const boardId = await getBoardIdFromCard(input.cardId);
+      await requireBoardMember(ctx.user.id, boardId);
+
+      // Verify the label belongs to this board
+      const label = await db.label.findUnique({
+        where: { id: input.labelId },
+        select: { boardId: true },
+      });
+      if (!label || label.boardId !== boardId) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Label not found on this board" });
+      }
+
+      // upsert prevents a duplicate error if the label is already applied
+      await db.cardLabel.upsert({
+        where: { cardId_labelId: { cardId: input.cardId, labelId: input.labelId } },
+        create: { cardId: input.cardId, labelId: input.labelId },
+        update: {},
+      });
+
+      return { success: true };
+    }),
+
+  // ─── REMOVE LABEL ───
+  // Detach a label from a card.
+  removeLabel: protectedProcedure
+    .input(z.object({ cardId: z.string(), labelId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const boardId = await getBoardIdFromCard(input.cardId);
+      await requireBoardMember(ctx.user.id, boardId);
+
+      await db.cardLabel.deleteMany({
+        where: { cardId: input.cardId, labelId: input.labelId },
+      });
+
+      return { success: true };
+    }),
+
+  // ─── ADD ASSIGNEE ───
+  // Assign a user to a card. The user must be a board member.
+  addAssignee: protectedProcedure
+    .input(z.object({ cardId: z.string(), userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const boardId = await getBoardIdFromCard(input.cardId);
+      await requireBoardMember(ctx.user.id, boardId);
+
+      // Verify the target user is also a board member
+      const targetMembership = await db.boardMember.findUnique({
+        where: { userId_boardId: { userId: input.userId, boardId } },
+      });
+      if (!targetMembership) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User is not a member of this board",
+        });
+      }
+
+      await db.cardAssignee.upsert({
+        where: { cardId_userId: { cardId: input.cardId, userId: input.userId } },
+        create: { cardId: input.cardId, userId: input.userId },
+        update: {},
+      });
+
+      return { success: true };
+    }),
+
+  // ─── REMOVE ASSIGNEE ───
+  // Unassign a user from a card.
+  removeAssignee: protectedProcedure
+    .input(z.object({ cardId: z.string(), userId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const boardId = await getBoardIdFromCard(input.cardId);
+      await requireBoardMember(ctx.user.id, boardId);
+
+      await db.cardAssignee.deleteMany({
+        where: { cardId: input.cardId, userId: input.userId },
+      });
+
+      return { success: true };
+    }),
+
   // ─── CREATE ───
   // Add a new card to the bottom of a column.
   // ANY board member can create cards.
