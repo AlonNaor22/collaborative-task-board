@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Collaborative Task Board
 
-## Getting Started
+A full-stack collaborative Kanban board built as a portfolio project. Users can create boards, manage columns and cards with drag-and-drop, assign members, add labels, and set due dates.
 
-First, run the development server:
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS, shadcn/ui |
+| API | tRPC v11 (end-to-end type safety) |
+| Database | PostgreSQL + Prisma ORM |
+| Auth | Auth.js v5 (Credentials provider) |
+| Drag & Drop | @dnd-kit/core + @dnd-kit/sortable |
+| State | TanStack Query (server state) + Zustand (UI state) |
+
+## Features Implemented
+
+- **Authentication** — Register, login, logout with hashed passwords (bcryptjs) and session middleware
+- **Board CRUD** — Create, edit, delete boards with color accents; role-based access (OWNER / ADMIN / MEMBER)
+- **Kanban Board** — Columns with drag-and-drop reordering; cards draggable across columns and within columns; optimistic updates via Zustand
+- **Card Details** — Rich modal with description, color-coded labels (board-scoped), member assignees, and due date picker with overdue/upcoming indicators
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- PostgreSQL running locally (or a connection string to a hosted instance)
+
+### Installation
+
+```bash
+git clone https://github.com/AlonNaor22/collaborative-task-board.git
+cd collaborative-task-board
+npm install
+```
+
+### Environment Variables
+
+Create a `.env` file in the project root:
+
+```env
+DATABASE_URL="postgresql://postgres:password@localhost:5432/taskboard?schema=public"
+AUTH_SECRET="generate-with-openssl-rand-base64-32"
+AUTH_URL="http://localhost:3000"
+```
+
+Generate `AUTH_SECRET` with:
+```bash
+openssl rand -base64 32
+```
+
+### Database
+
+```bash
+npx prisma migrate dev
+npx prisma db seed
+```
+
+The seed creates 3 test users (Alice, Bob, Charlie) with password `password123` and sample boards.
+
+### Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Project Structure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+collaborative-task-board/
+├── prisma/
+│   ├── schema.prisma       # Database models
+│   ├── migrations/         # Migration history
+│   └── seed.ts             # Test data seed script
+├── src/
+│   ├── app/
+│   │   ├── (auth)/         # Login + Register pages
+│   │   ├── (dashboard)/    # Boards list + Board view
+│   │   └── api/trpc/       # tRPC HTTP handler
+│   ├── server/
+│   │   ├── auth.ts         # Auth.js config
+│   │   ├── db.ts           # Prisma client singleton
+│   │   └── trpc/routers/   # board, column, card routers
+│   ├── components/
+│   │   ├── ui/             # shadcn/ui base components
+│   │   ├── kanban/         # Board, Column, Card, DragOverlay
+│   │   └── card-detail/    # Labels, assignees, due date
+│   └── trpc/               # Client-side tRPC provider + hooks
+```
 
-## Learn More
+## Roadmap
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Phase | Status |
+|-------|--------|
+| Phase 1: Scaffolding + Auth | ✅ Complete |
+| Phase 2: Board CRUD + Dashboard | ✅ Complete |
+| Phase 3: Kanban + Drag & Drop | ✅ Complete |
+| Phase 4: Card Details (labels, assignees, due dates) | ✅ Complete |
+| Phase 5: Comments + Activity Log | Upcoming |
+| Phase 6: Real-Time with WebSockets (Socket.io) | Upcoming |
+| Phase 7: Notifications + Board Sharing | Upcoming |
+| Phase 8: Polish, Testing, Dark Mode | Upcoming |
