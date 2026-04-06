@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
 import { logActivity } from "@/server/activity";
+import { emitBoardUpdate, emitActivityUpdate } from "@/server/socket";
 
 // ──────────────────────────────────────────────
 // Column Router — CRUD + Reorder
@@ -159,6 +160,9 @@ export const columnRouter = createTRPCRouter({
         details: { columnTitle: column.title },
       });
 
+      emitBoardUpdate(input.boardId);
+      emitActivityUpdate(input.boardId);
+
       return column;
     }),
 
@@ -198,6 +202,8 @@ export const columnRouter = createTRPCRouter({
         where: { id: input.id },
         data: { title: input.title },
       });
+
+      emitBoardUpdate(column.boardId);
 
       return updated;
     }),
@@ -277,6 +283,9 @@ export const columnRouter = createTRPCRouter({
         details: { columnTitle: column.title },
       });
 
+      emitBoardUpdate(column.boardId);
+      emitActivityUpdate(column.boardId);
+
       return { success: true };
     }),
 
@@ -343,6 +352,8 @@ export const columnRouter = createTRPCRouter({
           })
         )
       );
+
+      emitBoardUpdate(input.boardId);
 
       return { success: true };
     }),

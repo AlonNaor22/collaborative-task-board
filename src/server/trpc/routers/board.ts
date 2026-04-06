@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
 import { logActivity } from "@/server/activity";
+import { emitBoardUpdate } from "@/server/socket";
 
 // ──────────────────────────────────────────────
 // Board Router — CRUD Procedures
@@ -237,6 +238,8 @@ export const boardRouter = createTRPCRouter({
           },
         },
       });
+
+      emitBoardUpdate(input.id);
 
       return board;
     }),

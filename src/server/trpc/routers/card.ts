@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
 import { logActivity } from "@/server/activity";
+import { emitBoardUpdate, emitActivityUpdate } from "@/server/socket";
 
 // ──────────────────────────────────────────────
 // Card Router — CRUD + Move/Reorder
@@ -183,6 +184,10 @@ export const cardRouter = createTRPCRouter({
         },
       });
 
+      // Broadcast to other clients viewing this board
+      emitBoardUpdate(boardId);
+      emitActivityUpdate(boardId);
+
       return updated;
     }),
 
@@ -228,6 +233,9 @@ export const cardRouter = createTRPCRouter({
         },
       });
 
+      emitBoardUpdate(boardId);
+      emitActivityUpdate(boardId);
+
       return { success: true };
     }),
 
@@ -260,6 +268,9 @@ export const cardRouter = createTRPCRouter({
           labelColor: labelRecord?.color ?? "",
         },
       });
+
+      emitBoardUpdate(boardId);
+      emitActivityUpdate(boardId);
 
       return { success: true };
     }),
@@ -305,6 +316,9 @@ export const cardRouter = createTRPCRouter({
         },
       });
 
+      emitBoardUpdate(boardId);
+      emitActivityUpdate(boardId);
+
       return { success: true };
     }),
 
@@ -336,6 +350,9 @@ export const cardRouter = createTRPCRouter({
           assigneeName: assignee?.name ?? "",
         },
       });
+
+      emitBoardUpdate(boardId);
+      emitActivityUpdate(boardId);
 
       return { success: true };
     }),
@@ -385,6 +402,9 @@ export const cardRouter = createTRPCRouter({
         details: { cardTitle: card.title, columnTitle: column?.title ?? "" },
       });
 
+      emitBoardUpdate(boardId);
+      emitActivityUpdate(boardId);
+
       return card;
     }),
 
@@ -427,6 +447,8 @@ export const cardRouter = createTRPCRouter({
           },
         },
       });
+
+      emitBoardUpdate(card.column.boardId);
 
       return updated;
     }),
@@ -474,6 +496,8 @@ export const cardRouter = createTRPCRouter({
           )
         );
       });
+
+      emitBoardUpdate(card.column.boardId);
 
       return { success: true };
     }),
@@ -569,6 +593,9 @@ export const cardRouter = createTRPCRouter({
           toColumnTitle: targetColumn?.title ?? "",
         },
       });
+
+      emitBoardUpdate(boardId);
+      emitActivityUpdate(boardId);
 
       return { success: true };
     }),

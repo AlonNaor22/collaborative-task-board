@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
+import { emitBoardUpdate } from "@/server/socket";
 
 // ──────────────────────────────────────────────
 // Label Router — CRUD for board labels
@@ -65,13 +66,17 @@ export const labelRouter = createTRPCRouter({
         });
       }
 
-      return db.label.create({
+      const label = await db.label.create({
         data: {
           name: input.name,
           color: input.color,
           boardId: input.boardId,
         },
       });
+
+      emitBoardUpdate(input.boardId);
+
+      return label;
     }),
 
   // ─── UPDATE ───
@@ -107,13 +112,17 @@ export const labelRouter = createTRPCRouter({
         });
       }
 
-      return db.label.update({
+      const updated = await db.label.update({
         where: { id: input.id },
         data: {
           ...(input.name !== undefined && { name: input.name }),
           ...(input.color !== undefined && { color: input.color }),
         },
       });
+
+      emitBoardUpdate(label.boardId);
+
+      return updated;
     }),
 
   // ─── DELETE ───
@@ -137,6 +146,9 @@ export const labelRouter = createTRPCRouter({
       }
 
       await db.label.delete({ where: { id: input.id } });
+
+      emitBoardUpdate(label.boardId);
+
       return { success: true };
     }),
 });

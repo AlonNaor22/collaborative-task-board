@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
 import { logActivity } from "@/server/activity";
+import { emitCommentUpdate, emitActivityUpdate } from "@/server/socket";
 
 // ──────────────────────────────────────────────
 // Comment Router
@@ -111,6 +112,9 @@ export const commentRouter = createTRPCRouter({
         },
       });
 
+      emitCommentUpdate(boardId, input.cardId);
+      emitActivityUpdate(boardId);
+
       return comment;
     }),
 
@@ -147,13 +151,19 @@ export const commentRouter = createTRPCRouter({
         });
       }
 
-      return db.comment.update({
+      const updated = await db.comment.update({
         where: { id: input.id },
         data: { content: input.content },
         include: {
           user: { select: { id: true, name: true, image: true } },
         },
       });
+
+      // Get boardId for the emit (comment → card → column → board)
+      const boardId = await getBoardIdFromCard(comment.cardId);
+      emitCommentUpdate(boardId, comment.cardId);
+
+      return updated;
     }),
 
   // ─── DELETE ───
@@ -180,13 +190,18 @@ export const commentRouter = createTRPCRouter({
 
       await db.comment.delete({ where: { id: input.id } });
 
+      const boardId = comment.card.column.boardId;
+
       await logActivity(db, {
-        boardId: comment.card.column.boardId,
+        boardId,
         cardId: comment.cardId,
         userId: ctx.user.id,
         action: "deleted_comment",
         details: { cardTitle: comment.card.title },
       });
+
+      emitCommentUpdate(boardId, comment.cardId);
+      emitActivityUpdate(boardId);
 
       return { success: true };
     }),

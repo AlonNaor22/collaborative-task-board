@@ -31,6 +31,9 @@ import { KanbanCard } from "./kanban-card";
 import { CardDetailModal } from "./card-detail-modal";
 import { ActivityPanel } from "./activity-panel";
 import { useBoardStore, type ColumnData, type CardData } from "@/hooks/use-board-store";
+import { useSocket } from "@/hooks/use-socket";
+import { BoardPresence } from "@/components/board/board-presence";
+import { ConnectionStatusIndicator } from "@/components/board/connection-status";
 
 // ──────────────────────────────────────────────
 // KanbanBoard — The Full Board with DnD
@@ -68,6 +71,12 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const isOwnerOrAdmin = userRole === "OWNER" || userRole === "ADMIN";
+
+  // ─── Real-time Socket.io connection (Phase 6) ───
+  // Connects to the server, joins this board's room, and listens for
+  // change events. When another user modifies the board, the socket
+  // receives an event and TanStack Query automatically refetches.
+  const { status: connectionStatus, presenceUsers } = useSocket({ boardId });
 
   // ─── Fetch columns (with cards) ───
   const columnListQueryOptions = trpc.column.list.queryOptions({ boardId });
@@ -289,8 +298,15 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
 
   return (
     <div className="flex flex-col gap-3">
-      {/* ─── Board toolbar (activity toggle) ─── */}
-      <div className="flex justify-end">
+      {/* ─── Board toolbar: presence + connection status + activity toggle ─── */}
+      <div className="flex items-center justify-between">
+        {/* Left side: connection status + who's viewing */}
+        <div className="flex items-center gap-4">
+          <ConnectionStatusIndicator status={connectionStatus} />
+          <BoardPresence users={presenceUsers} currentUserId={currentUserId} />
+        </div>
+
+        {/* Right side: activity toggle */}
         <Button
           variant={showActivity ? "secondary" : "ghost"}
           size="sm"
