@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
+import { logActivity } from "@/server/activity";
 
 // ──────────────────────────────────────────────
 // Column Router — CRUD + Reorder
@@ -151,6 +152,13 @@ export const columnRouter = createTRPCRouter({
         },
       });
 
+      await logActivity(db, {
+        boardId: input.boardId,
+        userId: ctx.user.id,
+        action: "created_column",
+        details: { columnTitle: column.title },
+      });
+
       return column;
     }),
 
@@ -260,6 +268,13 @@ export const columnRouter = createTRPCRouter({
             })
           )
         );
+      });
+
+      await logActivity(db, {
+        boardId: column.boardId,
+        userId: ctx.user.id,
+        action: "deleted_column",
+        details: { columnTitle: column.title },
       });
 
       return { success: true };

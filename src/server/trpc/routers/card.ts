@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
+import { logActivity } from "@/server/activity";
 
 // ──────────────────────────────────────────────
 // Card Router — CRUD + Move/Reorder
@@ -161,10 +162,28 @@ export const cardRouter = createTRPCRouter({
       const boardId = await getBoardIdFromCard(input.id);
       await requireBoardMember(ctx.user.id, boardId);
 
-      return db.card.update({
+      const card = await db.card.findUnique({
+        where: { id: input.id },
+        select: { title: true },
+      });
+
+      const updated = await db.card.update({
         where: { id: input.id },
         data: { dueDate: input.dueDate },
       });
+
+      await logActivity(db, {
+        boardId,
+        cardId: input.id,
+        userId: ctx.user.id,
+        action: "set_due_date",
+        details: {
+          cardTitle: card?.title ?? "",
+          dueDate: input.dueDate?.toISOString() ?? null,
+        },
+      });
+
+      return updated;
     }),
 
   // ─── ADD LABEL ───
@@ -192,6 +211,23 @@ export const cardRouter = createTRPCRouter({
         update: {},
       });
 
+      const [card, labelRecord] = await Promise.all([
+        db.card.findUnique({ where: { id: input.cardId }, select: { title: true } }),
+        db.label.findUnique({ where: { id: input.labelId }, select: { name: true, color: true } }),
+      ]);
+
+      await logActivity(db, {
+        boardId,
+        cardId: input.cardId,
+        userId: ctx.user.id,
+        action: "added_label",
+        details: {
+          cardTitle: card?.title ?? "",
+          labelName: labelRecord?.name ?? "",
+          labelColor: labelRecord?.color ?? "",
+        },
+      });
+
       return { success: true };
     }),
 
@@ -203,8 +239,26 @@ export const cardRouter = createTRPCRouter({
       const boardId = await getBoardIdFromCard(input.cardId);
       await requireBoardMember(ctx.user.id, boardId);
 
+      // Fetch names before deleting (for activity log)
+      const [card, labelRecord] = await Promise.all([
+        db.card.findUnique({ where: { id: input.cardId }, select: { title: true } }),
+        db.label.findUnique({ where: { id: input.labelId }, select: { name: true, color: true } }),
+      ]);
+
       await db.cardLabel.deleteMany({
         where: { cardId: input.cardId, labelId: input.labelId },
+      });
+
+      await logActivity(db, {
+        boardId,
+        cardId: input.cardId,
+        userId: ctx.user.id,
+        action: "removed_label",
+        details: {
+          cardTitle: card?.title ?? "",
+          labelName: labelRecord?.name ?? "",
+          labelColor: labelRecord?.color ?? "",
+        },
       });
 
       return { success: true };
@@ -235,6 +289,22 @@ export const cardRouter = createTRPCRouter({
         update: {},
       });
 
+      const [card, assignee] = await Promise.all([
+        db.card.findUnique({ where: { id: input.cardId }, select: { title: true } }),
+        db.user.findUnique({ where: { id: input.userId }, select: { name: true } }),
+      ]);
+
+      await logActivity(db, {
+        boardId,
+        cardId: input.cardId,
+        userId: ctx.user.id,
+        action: "added_assignee",
+        details: {
+          cardTitle: card?.title ?? "",
+          assigneeName: assignee?.name ?? "",
+        },
+      });
+
       return { success: true };
     }),
 
@@ -246,8 +316,25 @@ export const cardRouter = createTRPCRouter({
       const boardId = await getBoardIdFromCard(input.cardId);
       await requireBoardMember(ctx.user.id, boardId);
 
+      // Fetch names before deleting
+      const [card, assignee] = await Promise.all([
+        db.card.findUnique({ where: { id: input.cardId }, select: { title: true } }),
+        db.user.findUnique({ where: { id: input.userId }, select: { name: true } }),
+      ]);
+
       await db.cardAssignee.deleteMany({
         where: { cardId: input.cardId, userId: input.userId },
+      });
+
+      await logActivity(db, {
+        boardId,
+        cardId: input.cardId,
+        userId: ctx.user.id,
+        action: "removed_assignee",
+        details: {
+          cardTitle: card?.title ?? "",
+          assigneeName: assignee?.name ?? "",
+        },
       });
 
       return { success: true };
@@ -282,6 +369,20 @@ export const cardRouter = createTRPCRouter({
             select: { id: true, name: true, image: true },
           },
         },
+      });
+
+      // Get column title for the activity log
+      const column = await db.column.findUnique({
+        where: { id: input.columnId },
+        select: { title: true },
+      });
+
+      await logActivity(db, {
+        boardId,
+        cardId: card.id,
+        userId: ctx.user.id,
+        action: "created_card",
+        details: { cardTitle: card.title, columnTitle: column?.title ?? "" },
       });
 
       return card;
@@ -416,6 +517,15 @@ export const cardRouter = createTRPCRouter({
         }
       }
 
+      // Fetch card + column names before transaction (for activity log)
+      const [movedCard, sourceColumn, targetColumn] = await Promise.all([
+        db.card.findUnique({ where: { id: input.cardId }, select: { title: true } }),
+        input.sourceColumnId
+          ? db.column.findUnique({ where: { id: input.sourceColumnId }, select: { title: true } })
+          : null,
+        db.column.findUnique({ where: { id: input.targetColumnId }, select: { title: true } }),
+      ]);
+
       await db.$transaction(async (tx) => {
         // If cross-column move, update the card's columnId
         if (input.sourceColumnId && input.sourceColumnId !== input.targetColumnId) {
@@ -446,6 +556,18 @@ export const cardRouter = createTRPCRouter({
             })
           )
         );
+      });
+
+      await logActivity(db, {
+        boardId,
+        cardId: input.cardId,
+        userId: ctx.user.id,
+        action: "moved_card",
+        details: {
+          cardTitle: movedCard?.title ?? "",
+          fromColumnTitle: sourceColumn?.title ?? targetColumn?.title ?? "",
+          toColumnTitle: targetColumn?.title ?? "",
+        },
       });
 
       return { success: true };

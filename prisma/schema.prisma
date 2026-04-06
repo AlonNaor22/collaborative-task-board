@@ -46,6 +46,9 @@ model User {
   createdCards     Card[]          @relation("CardCreator")
   // Phase 4: cards this user is assigned to (via CardAssignee join table)
   assignedCards    CardAssignee[]
+  // Phase 5: comments and activity entries created by this user
+  comments         Comment[]
+  activities       Activity[]
 
   @@map("users")
 }
@@ -98,6 +101,8 @@ model Board {
   columns Column[]
   // Phase 4: labels that belong to this board (shared across all cards)
   labels  Label[]
+  // Phase 5: activity log for this board
+  activities Activity[]
 
   @@map("boards")
 }
@@ -210,6 +215,9 @@ model Card {
   // Phase 4: labels and assignees (many-to-many via join tables)
   labels    CardLabel[]
   assignees CardAssignee[]
+  // Phase 5: comments and activity entries on this card
+  comments   Comment[]
+  activities Activity[]
 
   // ─── Index ───
   // Same rationale as columns: we always query "cards in column X, ordered by position".
@@ -268,4 +276,67 @@ model CardAssignee {
 
   @@id([cardId, userId])
   @@map("card_assignees")
+}
+
+// ──────────────────────────────────────────────
+// Comment Model
+// ──────────────────────────────────────────────
+// A comment is a text message left by a user on a specific card.
+// Think of it like a GitHub issue comment: threaded, author-attributed,
+// and shown in reverse-chronological order (newest first).
+//
+// WHO CAN COMMENT?
+// Any board member can comment on any card. Editing/deleting is
+// restricted to the comment's author (enforced in the tRPC router).
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  cardId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  card Card @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // We frequently query "all comments for card X, newest first"
+  @@index([cardId, createdAt])
+  @@map("comments")
+}
+
+// ──────────────────────────────────────────────
+// Activity Model
+// ──────────────────────────────────────────────
+// An immutable log entry recording what happened on a board.
+// Think of it like an audit trail or GitHub's "Alice added label 'Bug'" entries.
+//
+// Each activity records:
+//   - WHO did it (userId → User)
+//   - WHERE it happened (boardId, optional cardId)
+//   - WHAT happened (action string like "moved_card")
+//   - DETAILS (JSON with extra context: card name, column name, etc.)
+//
+// WHY JSON for details?
+// Different actions have different context. Instead of making 20 nullable
+// columns, we store a flexible JSON blob. The frontend parses it per action type.
+//
+// WHY onDelete: SetNull for card?
+// If a card is deleted, we want to keep the activity log entry (it records history),
+// but we null-out the card reference since the card no longer exists.
+model Activity {
+  id        String   @id @default(cuid())
+  boardId   String
+  cardId    String?
+  userId    String
+  action    String   // e.g. "created_card", "moved_card", "added_label"
+  details   Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  card  Card?  @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([boardId, createdAt])
+  @@index([cardId, createdAt])
+  @@map("activities")
 }

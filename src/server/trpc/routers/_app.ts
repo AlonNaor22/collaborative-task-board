@@ -4,6 +4,8 @@ import { boardRouter } from "./board";
 import { columnRouter } from "./column";
 import { cardRouter } from "./card";
 import { labelRouter } from "./label";
+import { commentRouter } from "./comment";
+import { activityRouter } from "./activity";
 
 // ──────────────────────────────────────────────
 // Root App Router
@@ -34,6 +36,8 @@ export const appRouter = createTRPCRouter({
   column: columnRouter,
   card: cardRouter,
   label: labelRouter,
+  comment: commentRouter,
+  activity: activityRouter,
 });
 
 // Export the router's TYPE (not the router itself).

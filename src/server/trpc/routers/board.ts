@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
+import { logActivity } from "@/server/activity";
 
 // ──────────────────────────────────────────────
 // Board Router — CRUD Procedures
@@ -171,6 +172,13 @@ export const boardRouter = createTRPCRouter({
             select: { members: true },
           },
         },
+      });
+
+      await logActivity(db, {
+        boardId: board.id,
+        userId: ctx.user.id,
+        action: "created_board",
+        details: { boardTitle: board.title },
       });
 
       return board;

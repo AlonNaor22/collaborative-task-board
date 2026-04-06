@@ -90,7 +90,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
         No tRPC call needed in the client for this — the board metadata
         is already known at render time.
       */}
-      <KanbanBoard boardId={id} userRole={userRole} />
+      <KanbanBoard boardId={id} userRole={userRole} currentUserId={session?.user?.id ?? ""} />
     </div>
   );
 }

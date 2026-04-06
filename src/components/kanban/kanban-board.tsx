@@ -20,7 +20,7 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { createPortal } from "react-dom";
-import { Plus, X, Check } from "lucide-react";
+import { Plus, X, Check, Activity } from "lucide-react";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { KanbanColumn } from "./kanban-column";
 import { KanbanCard } from "./kanban-card";
 import { CardDetailModal } from "./card-detail-modal";
+import { ActivityPanel } from "./activity-panel";
 import { useBoardStore, type ColumnData, type CardData } from "@/hooks/use-board-store";
 
 // ──────────────────────────────────────────────
@@ -42,6 +43,7 @@ import { useBoardStore, type ColumnData, type CardData } from "@/hooks/use-board
 //   4. Handling drag events (onDragStart, onDragOver, onDragEnd)
 //   5. Rendering KanbanColumn list + DragOverlay
 //   6. "Add column" form (OWNER/ADMIN only)
+//   7. Board-wide activity panel (Phase 5)
 //
 // HOW @dnd-kit WORKS:
 // ─────────────────────────────────
@@ -59,9 +61,10 @@ import { useBoardStore, type ColumnData, type CardData } from "@/hooks/use-board
 interface KanbanBoardProps {
   boardId: string;
   userRole: "OWNER" | "ADMIN" | "MEMBER";
+  currentUserId: string;
 }
 
-export function KanbanBoard({ boardId, userRole }: KanbanBoardProps) {
+export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const isOwnerOrAdmin = userRole === "OWNER" || userRole === "ADMIN";
@@ -86,6 +89,9 @@ export function KanbanBoard({ boardId, userRole }: KanbanBoardProps) {
 
   // ─── Card detail modal state ───
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+
+  // ─── Activity panel state (Phase 5) ───
+  const [showActivity, setShowActivity] = useState(false);
 
   // ─── Drag state ───
   const [activeCard, setActiveCard] = useState<CardData | null>(null);
@@ -282,128 +288,155 @@ export function KanbanBoard({ boardId, userRole }: KanbanBoardProps) {
   }
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCorners}
-      onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="flex items-start gap-4 overflow-x-auto pb-4">
-        {/*
-          Outer SortableContext tracks columns (horizontal reorder).
-          items must be the column IDs in their current order.
-        */}
-        <SortableContext
-          items={localColumns.map((c) => c.id)}
-          strategy={horizontalListSortingStrategy}
+    <div className="flex flex-col gap-3">
+      {/* ─── Board toolbar (activity toggle) ─── */}
+      <div className="flex justify-end">
+        <Button
+          variant={showActivity ? "secondary" : "ghost"}
+          size="sm"
+          className="gap-1.5 text-xs"
+          onClick={() => setShowActivity((v) => !v)}
         >
-          {localColumns.map((column) => (
-            <KanbanColumn
-              key={column.id}
-              column={column}
-              boardId={boardId}
-              isOwnerOrAdmin={isOwnerOrAdmin}
-              onCardDelete={(cardId) => deleteCardMutation.mutate({ id: cardId })}
-              isDeletingCard={
-                deleteCardMutation.isPending
-                  ? (deleteCardMutation.variables as { id: string } | undefined)?.id ?? null
-                  : null
-              }
-              onCardClick={(cardId) => setSelectedCardId(cardId)}
-            />
-          ))}
-        </SortableContext>
-
-        {/* Add column button/form */}
-        {isOwnerOrAdmin && (
-          <div className="w-72 shrink-0">
-            {isAddingColumn ? (
-              <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3">
-                <Input
-                  autoFocus
-                  placeholder="Column title..."
-                  value={newColumnTitle}
-                  onChange={(e) => setNewColumnTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAddColumn();
-                    if (e.key === "Escape") { setIsAddingColumn(false); setNewColumnTitle(""); }
-                  }}
-                  className="h-8 text-sm"
-                />
-                <div className="flex gap-1">
-                  <Button
-                    size="sm"
-                    className="h-7 flex-1 text-xs"
-                    onClick={handleAddColumn}
-                    disabled={!newColumnTitle.trim() || createColumnMutation.isPending}
-                  >
-                    <Check className="mr-1 h-3 w-3" />
-                    Add column
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => { setIsAddingColumn(false); setNewColumnTitle(""); }}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <button
-                className="flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:border-solid hover:text-foreground"
-                onClick={() => setIsAddingColumn(true)}
-              >
-                <Plus className="h-4 w-4" />
-                Add column
-              </button>
-            )}
-          </div>
-        )}
+          <Activity className="h-3.5 w-3.5" />
+          Activity
+        </Button>
       </div>
 
-      {/*
-        DragOverlay — floating copy of the dragged item.
-        Rendered into document.body via createPortal so it's never
-        clipped by overflow:hidden on parent elements.
-      */}
-      {typeof document !== "undefined" &&
-        createPortal(
-          <DragOverlay>
-            {activeCard && (
-              <div className="rotate-2 opacity-95 shadow-xl">
-                <KanbanCard card={activeCard} onDelete={() => {}} />
-              </div>
-            )}
-            {activeColumn && (
-              <div className="rotate-1 opacity-95 shadow-xl">
-                <KanbanColumn
-                  column={activeColumn}
-                  boardId={boardId}
-                  isOwnerOrAdmin={false}
-                  onCardDelete={() => {}}
-                />
-              </div>
-            )}
-          </DragOverlay>,
-          document.body
-        )}
+      {/* ─── Board area: columns + optional activity panel ─── */}
+      <div className="flex gap-4 items-start">
+        {/* Main kanban scroll area */}
+        <div className="flex-1 min-w-0">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex items-start gap-4 overflow-x-auto pb-4">
+              {/*
+                Outer SortableContext tracks columns (horizontal reorder).
+                items must be the column IDs in their current order.
+              */}
+              <SortableContext
+                items={localColumns.map((c) => c.id)}
+                strategy={horizontalListSortingStrategy}
+              >
+                {localColumns.map((column) => (
+                  <KanbanColumn
+                    key={column.id}
+                    column={column}
+                    boardId={boardId}
+                    isOwnerOrAdmin={isOwnerOrAdmin}
+                    onCardDelete={(cardId) => deleteCardMutation.mutate({ id: cardId })}
+                    isDeletingCard={
+                      deleteCardMutation.isPending
+                        ? (deleteCardMutation.variables as { id: string } | undefined)?.id ?? null
+                        : null
+                    }
+                    onCardClick={(cardId) => setSelectedCardId(cardId)}
+                  />
+                ))}
+              </SortableContext>
 
-      {/* ─── Card Detail Modal ───
-        Renders when the user clicks a card.
-        onUpdated re-fetches the column list so label/assignee changes
-        are reflected in the card previews immediately.
-      */}
-      {selectedCardId && (
-        <CardDetailModal
-          cardId={selectedCardId}
-          boardId={boardId}
-          onClose={() => setSelectedCardId(null)}
-          onUpdated={() => queryClient.invalidateQueries({ queryKey: columnListKey })}
-        />
-      )}
-    </DndContext>
+              {/* Add column button/form */}
+              {isOwnerOrAdmin && (
+                <div className="w-72 shrink-0">
+                  {isAddingColumn ? (
+                    <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3">
+                      <Input
+                        autoFocus
+                        placeholder="Column title..."
+                        value={newColumnTitle}
+                        onChange={(e) => setNewColumnTitle(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddColumn();
+                          if (e.key === "Escape") { setIsAddingColumn(false); setNewColumnTitle(""); }
+                        }}
+                        className="h-8 text-sm"
+                      />
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          className="h-7 flex-1 text-xs"
+                          onClick={handleAddColumn}
+                          disabled={!newColumnTitle.trim() || createColumnMutation.isPending}
+                        >
+                          <Check className="mr-1 h-3 w-3" />
+                          Add column
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => { setIsAddingColumn(false); setNewColumnTitle(""); }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      className="flex w-full items-center gap-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground transition-colors hover:border-solid hover:text-foreground"
+                      onClick={() => setIsAddingColumn(true)}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add column
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/*
+              DragOverlay — floating copy of the dragged item.
+              Rendered into document.body via createPortal so it's never
+              clipped by overflow:hidden on parent elements.
+            */}
+            {typeof document !== "undefined" &&
+              createPortal(
+                <DragOverlay>
+                  {activeCard && (
+                    <div className="rotate-2 opacity-95 shadow-xl">
+                      <KanbanCard card={activeCard} onDelete={() => {}} />
+                    </div>
+                  )}
+                  {activeColumn && (
+                    <div className="rotate-1 opacity-95 shadow-xl">
+                      <KanbanColumn
+                        column={activeColumn}
+                        boardId={boardId}
+                        isOwnerOrAdmin={false}
+                        onCardDelete={() => {}}
+                      />
+                    </div>
+                  )}
+                </DragOverlay>,
+                document.body
+              )}
+
+            {/* ─── Card Detail Modal ───
+              Renders when the user clicks a card.
+              onUpdated re-fetches the column list so label/assignee changes
+              are reflected in the card previews immediately.
+            */}
+            {selectedCardId && (
+              <CardDetailModal
+                cardId={selectedCardId}
+                boardId={boardId}
+                currentUserId={currentUserId}
+                onClose={() => setSelectedCardId(null)}
+                onUpdated={() => queryClient.invalidateQueries({ queryKey: columnListKey })}
+              />
+            )}
+          </DndContext>
+        </div>
+
+        {/* ─── Activity Panel (Phase 5) ─── */}
+        {showActivity && (
+          <ActivityPanel boardId={boardId} onClose={() => setShowActivity(false)} />
+        )}
+      </div>
+    </div>
   );
 }
