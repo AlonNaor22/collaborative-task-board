@@ -3,7 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
 import { logActivity } from "@/server/activity";
-import { emitCommentUpdate, emitActivityUpdate } from "@/server/socket";
+import { emitCommentUpdate, emitActivityUpdate, emitNotification } from "@/server/socket";
+import { createNotification, parseMentions } from "@/server/notification";
 
 // ──────────────────────────────────────────────
 // Comment Router
@@ -111,6 +112,37 @@ export const commentRouter = createTRPCRouter({
           commentPreview: input.content.slice(0, 80),
         },
       });
+
+      // Phase 7: Detect @mentions and notify mentioned board members
+      // We match @name patterns against board member names.
+      // For example, "@Alice check this" notifies Alice if she's a board member.
+      const mentionedNames = parseMentions(input.content);
+      if (mentionedNames.length > 0) {
+        const boardMembers = await db.boardMember.findMany({
+          where: { boardId },
+          include: { user: { select: { id: true, name: true } } },
+        });
+
+        for (const member of boardMembers) {
+          // Case-insensitive match: @alice matches "Alice Johnson"
+          const nameMatch = mentionedNames.some(
+            (name) =>
+              member.user.name?.toLowerCase().includes(name.toLowerCase())
+          );
+          if (nameMatch && member.userId !== ctx.user.id) {
+            await createNotification(db, {
+              userId: member.userId,
+              type: "MENTION",
+              title: "Mentioned in Comment",
+              message: `${ctx.user.name ?? "Someone"} mentioned you in "${cardTitle}"`,
+              linkUrl: `/boards/${boardId}`,
+              boardId,
+              cardId: input.cardId,
+            });
+            emitNotification(member.userId);
+          }
+        }
+      }
 
       emitCommentUpdate(boardId, input.cardId);
       emitActivityUpdate(boardId);

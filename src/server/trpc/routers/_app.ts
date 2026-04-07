@@ -6,6 +6,8 @@ import { cardRouter } from "./card";
 import { labelRouter } from "./label";
 import { commentRouter } from "./comment";
 import { activityRouter } from "./activity";
+import { invitationRouter } from "./invitation";
+import { notificationRouter } from "./notification";
 
 // ──────────────────────────────────────────────
 // Root App Router
@@ -38,6 +40,9 @@ export const appRouter = createTRPCRouter({
   label: labelRouter,
   comment: commentRouter,
   activity: activityRouter,
+  // Phase 7: Invitations and notifications
+  invitation: invitationRouter,
+  notification: notificationRouter,
 });
 
 // Export the router's TYPE (not the router itself).

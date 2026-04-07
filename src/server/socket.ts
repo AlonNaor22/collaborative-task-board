@@ -81,3 +81,26 @@ export function emitActivityUpdate(boardId: string) {
 
   server.to(`board:${boardId}`).emit("board:activity", { boardId });
 }
+
+// ─── Phase 7: Notification Emit Helpers ───
+// These target USER rooms ("user:<userId>") instead of board rooms.
+// User rooms are auto-joined when the socket connects (see server.ts),
+// so the user receives these no matter what page they're on.
+
+// Helper: Tell a user they have a new notification.
+// The client invalidates notification queries → badge updates, list refreshes.
+export function emitNotification(userId: string) {
+  const server = getIO();
+  if (!server) return;
+
+  server.to(`user:${userId}`).emit("notification:new", { userId });
+}
+
+// Helper: Tell a user their notification was marked as read.
+// Syncs across multiple browser tabs — read in one, badge updates in all.
+export function emitNotificationRead(userId: string) {
+  const server = getIO();
+  if (!server) return;
+
+  server.to(`user:${userId}`).emit("notification:read", { userId });
+}

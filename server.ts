@@ -171,6 +171,13 @@ async function main() {
       `[Socket.io] User connected: ${socket.data.userName} (${socket.data.userId})`
     );
 
+    // ─── Auto-join user room for notifications (Phase 7) ───
+    // Every authenticated socket automatically joins their own user room.
+    // This room persists across board navigation — unlike board rooms which
+    // change when the user switches boards. tRPC routers emit to this room
+    // via emitNotification(userId) when something notification-worthy happens.
+    socket.join(`user:${socket.data.userId}`);
+
     // ─── Join a board room ───
     // When the client calls socket.emit("board:join", { boardId }),
     // we add this socket to the room "board:<boardId>".

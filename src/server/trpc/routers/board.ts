@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
 import { logActivity } from "@/server/activity";
-import { emitBoardUpdate } from "@/server/socket";
+import { emitBoardUpdate, emitActivityUpdate } from "@/server/socket";
 
 // ──────────────────────────────────────────────
 // Board Router — CRUD Procedures
@@ -284,6 +284,242 @@ export const boardRouter = createTRPCRouter({
       await db.board.delete({
         where: { id: input.id },
       });
+
+      return { success: true };
+    }),
+
+  // ──────────────────────────────────────────────
+  // Phase 7: Board Member Management
+  // ──────────────────────────────────────────────
+
+  // ─── SEARCH USERS ───
+  // Search for users by email to invite them to a board.
+  // Only OWNER/ADMIN can search (since they're the ones sending invites).
+  // Results exclude users who are already members of the board.
+  //
+  // WHY SEARCH BY EMAIL (not name)?
+  // Emails are unique identifiers — "John" could be anyone, but
+  // "john@example.com" is exactly one person. This prevents inviting
+  // the wrong person, especially in larger organizations.
+  searchUsers: protectedProcedure
+    .input(
+      z.object({
+        boardId: z.string(),
+        query: z.string().min(1).max(100),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      // Verify caller is OWNER or ADMIN
+      const membership = await db.boardMember.findUnique({
+        where: {
+          userId_boardId: { userId: ctx.user.id, boardId: input.boardId },
+        },
+      });
+
+      if (
+        !membership ||
+        (membership.role !== "OWNER" && membership.role !== "ADMIN")
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only board owners and admins can search users",
+        });
+      }
+
+      // Get current board member IDs to exclude from results
+      const currentMembers = await db.boardMember.findMany({
+        where: { boardId: input.boardId },
+        select: { userId: true },
+      });
+      const memberIds = currentMembers.map((m) => m.userId);
+
+      // Search users whose email contains the query string
+      // (case-insensitive). Limit to 5 results for performance.
+      return db.user.findMany({
+        where: {
+          email: { contains: input.query, mode: "insensitive" },
+          id: { notIn: memberIds },
+        },
+        select: { id: true, name: true, email: true, image: true },
+        take: 5,
+      });
+    }),
+
+  // ─── CHANGE ROLE ───
+  // Change a member's role on the board.
+  // Only the OWNER can change roles — this is a high-privilege operation.
+  //
+  // RESTRICTIONS:
+  // - Can't change your own role (prevents OWNER from accidentally demoting themselves)
+  // - Can't set someone to OWNER (ownership transfer would be a separate feature)
+  // - Can only set ADMIN or MEMBER
+  changeRole: protectedProcedure
+    .input(
+      z.object({
+        boardId: z.string(),
+        userId: z.string(),
+        role: z.enum(["ADMIN", "MEMBER"]),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Only OWNER can change roles
+      const callerMembership = await db.boardMember.findUnique({
+        where: {
+          userId_boardId: { userId: ctx.user.id, boardId: input.boardId },
+        },
+      });
+
+      if (!callerMembership || callerMembership.role !== "OWNER") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Only the board owner can change roles",
+        });
+      }
+
+      // Can't change your own role
+      if (input.userId === ctx.user.id) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "You cannot change your own role",
+        });
+      }
+
+      // Verify target user is a member
+      const targetMembership = await db.boardMember.findUnique({
+        where: {
+          userId_boardId: { userId: input.userId, boardId: input.boardId },
+        },
+        include: { user: { select: { name: true } } },
+      });
+
+      if (!targetMembership) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User is not a member of this board",
+        });
+      }
+
+      await db.boardMember.update({
+        where: {
+          userId_boardId: { userId: input.userId, boardId: input.boardId },
+        },
+        data: { role: input.role },
+      });
+
+      await logActivity(db, {
+        boardId: input.boardId,
+        userId: ctx.user.id,
+        action: "changed_role",
+        details: {
+          memberName: targetMembership.user.name ?? "",
+          newRole: input.role,
+        },
+      });
+
+      emitBoardUpdate(input.boardId);
+      emitActivityUpdate(input.boardId);
+
+      return { success: true };
+    }),
+
+  // ─── REMOVE MEMBER ───
+  // Remove a member from the board.
+  //
+  // AUTHORIZATION RULES:
+  // - OWNER can remove anyone (except themselves — must delete board instead)
+  // - ADMIN can remove MEMBERs only (not other ADMINs or the OWNER)
+  // - MEMBERs can't remove anyone
+  //
+  // This also deletes any pending invitations for the removed user,
+  // so they don't get re-added if they had a pending invite elsewhere.
+  removeMember: protectedProcedure
+    .input(
+      z.object({
+        boardId: z.string(),
+        userId: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get caller's role
+      const callerMembership = await db.boardMember.findUnique({
+        where: {
+          userId_boardId: { userId: ctx.user.id, boardId: input.boardId },
+        },
+      });
+
+      if (!callerMembership) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Board not found",
+        });
+      }
+
+      // Can't remove yourself if you're the OWNER
+      if (input.userId === ctx.user.id && callerMembership.role === "OWNER") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "The owner cannot leave the board. Delete the board instead.",
+        });
+      }
+
+      // Get the target member's role
+      const targetMembership = await db.boardMember.findUnique({
+        where: {
+          userId_boardId: { userId: input.userId, boardId: input.boardId },
+        },
+        include: { user: { select: { name: true } } },
+      });
+
+      if (!targetMembership) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User is not a member of this board",
+        });
+      }
+
+      // Authorization check based on caller's role
+      if (callerMembership.role === "MEMBER") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Members cannot remove other members",
+        });
+      }
+
+      if (
+        callerMembership.role === "ADMIN" &&
+        targetMembership.role !== "MEMBER"
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Admins can only remove members, not other admins or the owner",
+        });
+      }
+
+      // Remove the member
+      await db.boardMember.delete({
+        where: {
+          userId_boardId: { userId: input.userId, boardId: input.boardId },
+        },
+      });
+
+      // Clean up any pending invitations for this user on this board
+      await db.invitation.deleteMany({
+        where: {
+          boardId: input.boardId,
+          inviteeId: input.userId,
+          status: "PENDING",
+        },
+      });
+
+      await logActivity(db, {
+        boardId: input.boardId,
+        userId: ctx.user.id,
+        action: "removed_member",
+        details: { memberName: targetMembership.user.name ?? "" },
+      });
+
+      emitBoardUpdate(input.boardId);
+      emitActivityUpdate(input.boardId);
 
       return { success: true };
     }),

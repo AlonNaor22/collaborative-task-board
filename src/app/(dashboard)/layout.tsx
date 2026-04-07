@@ -1,6 +1,7 @@
 import { auth } from "@/server/auth";
 import { redirect } from "next/navigation";
 import { Navbar } from "@/components/navbar";
+import { NotificationSocketProvider } from "@/components/notifications/notification-socket-provider";
 
 // ──────────────────────────────────────────────
 // Dashboard Layout — Authenticated App Shell
@@ -43,25 +44,27 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* ─── Navbar ───
-        We pass the user object from the session.
-        The Navbar is a Client Component (needs interactivity),
-        but it receives its data from this Server Component.
-        This pattern is called "lifting data up" — the server
-        fetches, the client displays. */}
-      <Navbar user={session.user} />
+    <NotificationSocketProvider>
+      <div className="min-h-screen bg-background">
+        {/* ─── Navbar ───
+          We pass the user object from the session.
+          The Navbar is a Client Component (needs interactivity),
+          but it receives its data from this Server Component.
+          This pattern is called "lifting data up" — the server
+          fetches, the client displays. */}
+        <Navbar user={session.user} />
 
-      {/* ─── Page Content ───
-        The `children` slot is where the actual page renders.
-        For /boards, this will be the boards page.
-        For /boards/[id], this will be the board detail page (Phase 2).
+        {/* ─── Page Content ───
+          The `children` slot is where the actual page renders.
+          For /boards, this will be the boards page.
+          For /boards/[id], this will be the board detail page (Phase 2).
 
-        max-w-7xl centers the content with a max width (1280px).
-        This prevents content from stretching across ultra-wide monitors. */}
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        {children}
-      </main>
-    </div>
+          max-w-7xl centers the content with a max width (1280px).
+          This prevents content from stretching across ultra-wide monitors. */}
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          {children}
+        </main>
+      </div>
+    </NotificationSocketProvider>
   );
 }

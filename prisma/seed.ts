@@ -238,10 +238,97 @@ async function main() {
     );
   }
 
+  // ── Step 3: Create Invitations + Notifications (Phase 7) ──
+  // We create some sample invitations and notifications so the
+  // notification bell and invitation UI have data to show immediately.
+  console.log("\n📨 Creating invitations & notifications...");
+
+  const aliceId = userMap.get("alice@example.com")!;
+  const bobId = userMap.get("bob@example.com")!;
+  const charlieId = userMap.get("charlie@example.com")!;
+
+  // Find the "Personal Tasks" board (Alice-only) to create an invitation for
+  const personalBoard = await prisma.board.findFirst({
+    where: { title: "Personal Tasks", ownerId: aliceId },
+  });
+
+  if (personalBoard) {
+    // Alice invites Charlie to her Personal Tasks board
+    // (Charlie is not a member yet — this will show as a pending invitation)
+    const existingInvite = await prisma.invitation.findFirst({
+      where: {
+        boardId: personalBoard.id,
+        inviteeId: charlieId,
+        status: "PENDING",
+      },
+    });
+
+    if (!existingInvite) {
+      await prisma.invitation.create({
+        data: {
+          boardId: personalBoard.id,
+          inviterId: aliceId,
+          inviteeId: charlieId,
+          role: "MEMBER",
+          status: "PENDING",
+        },
+      });
+      console.log("  ✅ Invitation: Alice → Charlie (Personal Tasks)");
+    }
+  }
+
+  // Create sample notifications for Bob (so he sees them when logging in)
+  // Clear old seed notifications first
+  await prisma.notification.deleteMany({
+    where: {
+      userId: bobId,
+      title: { in: ["Card Assignment", "Mentioned in Comment", "Board Invitation"] },
+    },
+  });
+
+  const sprintBoard = await prisma.board.findFirst({
+    where: { title: "Sprint 23", ownerId: aliceId },
+  });
+
+  await prisma.notification.createMany({
+    data: [
+      {
+        userId: bobId,
+        type: "ASSIGNMENT",
+        title: "Card Assignment",
+        message: 'Alice Johnson assigned you to "Build Kanban board UI"',
+        linkUrl: sprintBoard ? `/boards/${sprintBoard.id}` : "/boards",
+        boardId: sprintBoard?.id ?? null,
+        read: false,
+      },
+      {
+        userId: bobId,
+        type: "MENTION",
+        title: "Mentioned in Comment",
+        message: 'Alice Johnson mentioned you in "Fix login redirect bug"',
+        linkUrl: sprintBoard ? `/boards/${sprintBoard.id}` : "/boards",
+        boardId: sprintBoard?.id ?? null,
+        read: false,
+      },
+      {
+        userId: charlieId,
+        type: "INVITATION",
+        title: "Board Invitation",
+        message: 'Alice Johnson invited you to "Personal Tasks"',
+        linkUrl: "/boards",
+        boardId: personalBoard?.id ?? null,
+        read: false,
+      },
+    ],
+  });
+  console.log("  ✅ 2 notifications for Bob (assignment, mention)");
+  console.log("  ✅ 1 notification for Charlie (invitation)");
+
   console.log("\n🌱 Seeding complete!");
   console.log("   You can log in with any user email");
   console.log('   and password: "password123"');
   console.log("\n   Alice has 3 boards, Bob sees 2, Charlie sees 1.");
+  console.log("   Bob has 2 notifications, Charlie has 1 pending invitation.");
 }
 
 // ─── Run & Cleanup ───

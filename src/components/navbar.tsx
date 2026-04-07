@@ -25,6 +25,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 // ─── Props ───
 // We only need the user's name and email for display.
@@ -68,7 +69,11 @@ export function Navbar({ user }: NavbarProps) {
           </h1>
         </div>
 
-        {/* ─── Right: User Dropdown Menu ─── */}
+        {/* ─── Right: Notifications + User Dropdown ─── */}
+        <div className="flex items-center gap-1">
+        {/* Phase 7: Notification bell with unread badge */}
+        <NotificationBell />
+
         {/*
           DropdownMenu is from shadcn/ui (built on Base UI).
           Base UI handles all the accessibility: keyboard navigation,
@@ -145,6 +150,7 @@ export function Navbar({ user }: NavbarProps) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </nav>
   );

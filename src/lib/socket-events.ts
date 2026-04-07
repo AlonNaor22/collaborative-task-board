@@ -48,6 +48,26 @@ export interface ServerToClientEvents {
     boardId: string;
     users: { id: string; name: string; image: string | null }[];
   }) => void;
+
+  // ─── Phase 7: Notification Events ───
+  // These events target USER rooms (not board rooms).
+  // A user room is "user:<userId>" — the user is in this room
+  // across all pages, not just when viewing a specific board.
+  //
+  // WHY USER ROOMS?
+  // Board rooms only reach people currently viewing THAT board.
+  // But a notification should reach you wherever you are in the app.
+  // If Alice invites you while you're on the dashboard, you should
+  // still see the bell badge update in real-time.
+
+  // A new notification was created for this user.
+  // The client invalidates notification queries to show the new one.
+  "notification:new": (data: { userId: string }) => void;
+
+  // A notification was marked as read (individual or bulk).
+  // Useful for syncing across multiple tabs — if you read a
+  // notification in one tab, the badge updates in all tabs.
+  "notification:read": (data: { userId: string }) => void;
 }
 
 // ─── Client → Server Events ───

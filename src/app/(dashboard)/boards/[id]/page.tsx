@@ -4,6 +4,8 @@ import { serverTRPC } from "@/trpc/server";
 import { KanbanBoard } from "@/components/kanban/kanban-board";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { BoardMembersDialog } from "@/components/board/board-members-dialog";
+import { InviteBoardDialog } from "@/components/board/invite-board-dialog";
 
 // ──────────────────────────────────────────────
 // Board Detail Page — /boards/[id]
@@ -82,6 +84,14 @@ export default async function BoardPage({ params }: BoardPageProps) {
         <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
           {userRole.charAt(0) + userRole.slice(1).toLowerCase()}
         </span>
+
+        {/* Phase 7: Member management + Invite buttons (pushed to the right) */}
+        <div className="ml-auto flex items-center gap-2">
+          <BoardMembersDialog boardId={id} currentUserRole={userRole} />
+          {(userRole === "OWNER" || userRole === "ADMIN") && (
+            <InviteBoardDialog boardId={id} />
+          )}
+        </div>
       </div>
 
       {/* ─── Kanban Board (Client Component) ───

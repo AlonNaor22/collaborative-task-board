@@ -49,6 +49,10 @@ model User {
   // Phase 5: comments and activity entries created by this user
   comments         Comment[]
   activities       Activity[]
+  // Phase 7: invitations and notifications
+  sentInvitations     Invitation[]   @relation("InvitationSender")
+  receivedInvitations Invitation[]   @relation("InvitationReceiver")
+  notifications       Notification[]
 
   @@map("users")
 }
@@ -66,6 +70,35 @@ enum Role {
   OWNER
   ADMIN
   MEMBER
+}
+
+// ──────────────────────────────────────────────
+// Invitation Status Enum
+// ──────────────────────────────────────────────
+// Tracks the lifecycle of a board invitation.
+// An invitation starts as PENDING and transitions to ACCEPTED or DECLINED
+// when the invitee acts on it. Think of it like an HTTP request:
+// PENDING = "waiting for response", ACCEPTED/DECLINED = "response received".
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+// ──────────────────────────────────────────────
+// Notification Type Enum
+// ──────────────────────────────────────────────
+// Categorizes notifications so the UI can show different icons and colors.
+// Each type corresponds to a specific user action:
+//   INVITATION — someone invited you to a board
+//   ASSIGNMENT — someone assigned you to a card
+//   MENTION    — someone @mentioned you in a comment
+//   DUE_DATE   — a card you're assigned to is due soon (future use)
+enum NotificationType {
+  INVITATION
+  ASSIGNMENT
+  MENTION
+  DUE_DATE
 }
 
 // ──────────────────────────────────────────────
@@ -103,6 +136,9 @@ model Board {
   labels  Label[]
   // Phase 5: activity log for this board
   activities Activity[]
+  // Phase 7: pending/accepted/declined invitations to this board
+  invitations   Invitation[]
+  notifications Notification[]
 
   @@map("boards")
 }
@@ -218,6 +254,8 @@ model Card {
   // Phase 5: comments and activity entries on this card
   comments   Comment[]
   activities Activity[]
+  // Phase 7: notifications referencing this card
+  notifications Notification[]
 
   // ─── Index ───
   // Same rationale as columns: we always query "cards in column X, ordered by position".
@@ -339,4 +377,91 @@ model Activity {
   @@index([boardId, createdAt])
   @@index([cardId, createdAt])
   @@map("activities")
+}
+
+// ──────────────────────────────────────────────
+// Invitation Model
+// ──────────────────────────────────────────────
+// Represents a pending (or resolved) invitation to join a board.
+// Think of it like a friend request on social media:
+//   1. Alice (inviter) sends an invitation to Bob (invitee) for Sprint 23
+//   2. The invitation sits as PENDING until Bob acts on it
+//   3. Bob accepts → a BoardMember record is created, status → ACCEPTED
+//   4. Or Bob declines → status → DECLINED, no membership created
+//
+// WHY A SEPARATE MODEL (not just creating BoardMember directly)?
+// Because invitations have a lifecycle. The invitee needs to consent
+// before becoming a member. We also want to show pending invitations
+// in the UI and prevent duplicate invites.
+//
+// NAMED RELATIONS:
+// User has two relations to Invitation (sender and receiver), just like
+// User has two relations to Board-related models. We name them to
+// disambiguate — same pattern as "BoardOwner" and "CardCreator".
+model Invitation {
+  id        String           @id @default(cuid())
+  status    InvitationStatus @default(PENDING)
+  role      Role             @default(MEMBER) // What role to assign on acceptance
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  // ─── Who sent the invitation ───
+  inviterId String
+  inviter   User @relation("InvitationSender", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  // ─── Who is being invited ───
+  inviteeId String
+  invitee   User @relation("InvitationReceiver", fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  // ─── Which board ───
+  boardId String
+  board   Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  // ─── Index ───
+  // We frequently query "all pending invitations for user X".
+  // This composite index speeds up: WHERE inviteeId = ? AND status = ?
+  @@index([inviteeId, status])
+  @@map("invitations")
+}
+
+// ──────────────────────────────────────────────
+// Notification Model
+// ──────────────────────────────────────────────
+// An in-app notification delivered to a user. Like GitHub's notification
+// bell — it tells you when something happened that requires your attention.
+//
+// Each notification has:
+//   - WHO it's for (userId)
+//   - WHAT happened (type + title + message)
+//   - WHERE to go (linkUrl — clicking the notification navigates here)
+//   - CONTEXT (optional boardId/cardId for display purposes)
+//   - WHETHER it's been seen (read flag)
+//
+// WHY onDelete: SetNull for board and card?
+// If a board or card is deleted, we keep the notification (it's historical),
+// but null out the reference. Same rationale as Activity.cardId.
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  linkUrl   String?          // e.g. "/boards/abc123" — for click-to-navigate
+  createdAt DateTime         @default(now())
+
+  // ─── Recipient ───
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // ─── Optional Context ───
+  boardId String?
+  board   Board? @relation(fields: [boardId], references: [id], onDelete: SetNull)
+  cardId  String?
+  card    Card?  @relation(fields: [cardId], references: [id], onDelete: SetNull)
+
+  // ─── Index ───
+  // The notification bell queries: "all notifications for user X, unread first, newest first".
+  // This composite index covers that exact query pattern.
+  @@index([userId, read, createdAt])
+  @@map("notifications")
 }

@@ -1,24 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { io, type Socket } from "socket.io-client";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc/client";
-import type {
-  ServerToClientEvents,
-  ClientToServerEvents,
-} from "@/lib/socket-events";
+import { getSocket } from "@/lib/socket-client";
 
 // ──────────────────────────────────────────────
-// useSocket — Client-Side Socket.io Hook
+// useSocket — Board-Scoped Socket.io Hook
 // ──────────────────────────────────────────────
-// This hook manages the WebSocket connection lifecycle:
-//   1. Creates a Socket.io connection when the component mounts
-//   2. Joins a board room to receive board-specific events
-//   3. Listens for server events and invalidates TanStack Query caches
-//   4. Tracks connection status (connected/disconnected/reconnecting)
-//   5. Tracks user presence (who else is viewing this board)
-//   6. Cleans up on unmount (disconnects, leaves room)
+// This hook manages the board-specific WebSocket lifecycle:
+//   1. Joins a board room to receive board-specific events
+//   2. Listens for server events and invalidates TanStack Query caches
+//   3. Tracks connection status (connected/disconnected/reconnecting)
+//   4. Tracks user presence (who else is viewing this board)
+//   5. Cleans up on unmount (leaves room, removes listeners)
 //
 // WHY A HOOK?
 // The socket connection is tied to the component lifecycle — when the user
@@ -26,17 +21,10 @@ import type {
 // A React hook is the natural way to express this "mount → do stuff → cleanup"
 // pattern. It's like Java's try-with-resources: automatic cleanup on exit.
 //
-// WHY SINGLETON SOCKET?
-// We use a module-level variable (`socketInstance`) so that even if the hook
-// unmounts and remounts (React Strict Mode does this in dev), we reuse the
-// same connection. Creating multiple connections would waste resources and
-// cause duplicate event handling.
-
-// ─── Typed Socket.io Client ───
-type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
-
-// Module-level singleton — survives React re-renders and Strict Mode double-mounts
-let socketInstance: TypedSocket | null = null;
+// SOCKET SINGLETON:
+// The actual socket lives in `src/lib/socket-client.ts` — a shared module
+// that both this hook and `useNotificationSocket` import from. This ensures
+// one connection per user, shared across all hooks (Phase 7 refactor).
 
 // Connection status type
 export type ConnectionStatus = "connected" | "disconnected" | "reconnecting";
@@ -74,27 +62,9 @@ export function useSocket({ boardId }: UseSocketOptions) {
 
   // ─── Socket Connection ───
   useEffect(() => {
-    // Create socket if it doesn't exist yet
-    if (!socketInstance) {
-      socketInstance = io({
-        // No URL needed — Socket.io defaults to the same host:port as the page.
-        // This works because our custom server runs Next.js + Socket.io on one port.
-        //
-        // `withCredentials: true` ensures the session cookie is sent with the
-        // WebSocket handshake, so the server can authenticate us.
-        withCredentials: true,
-        transports: ["websocket", "polling"],
-        // Auto-reconnect settings:
-        // Socket.io automatically reconnects if the connection drops.
-        // These settings control the retry behavior.
-        reconnection: true,
-        reconnectionAttempts: 10,
-        reconnectionDelay: 1000,     // Start with 1 second
-        reconnectionDelayMax: 10000, // Max 10 seconds between retries
-      });
-    }
-
-    const socket = socketInstance;
+    // Get the shared socket singleton from socket-client.ts.
+    // This is the same instance used by useNotificationSocket.
+    const socket = getSocket();
 
     // ─── Connection Status Handlers ───
     function onConnect() {

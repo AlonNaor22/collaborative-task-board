@@ -2,6 +2,7 @@ import { auth } from "@/server/auth";
 import { serverTRPC } from "@/trpc/server";
 import { BoardCard } from "@/components/board/board-card";
 import { CreateBoardDialog } from "@/components/board/create-board-dialog";
+import { PendingInvitations } from "@/components/board/pending-invitations";
 
 // ──────────────────────────────────────────────
 // Boards Page — "Your Boards" Dashboard
@@ -47,6 +48,13 @@ export default async function BoardsPage() {
           Here are your boards. Create a new one or jump into an existing board.
         </p>
       </div>
+
+      {/* ─── Phase 7: Pending Invitations ───
+        Shows any board invitations the user hasn't responded to yet.
+        Renders nothing if there are none — no wasted space.
+        This is a Client Component because it uses tRPC queries for real-time updates.
+      */}
+      <PendingInvitations />
 
       {/* ─── Board Grid ───
         The grid contains:

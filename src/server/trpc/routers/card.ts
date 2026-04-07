@@ -3,7 +3,8 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "../init";
 import { db } from "@/server/db";
 import { logActivity } from "@/server/activity";
-import { emitBoardUpdate, emitActivityUpdate } from "@/server/socket";
+import { emitBoardUpdate, emitActivityUpdate, emitNotification } from "@/server/socket";
+import { createNotification } from "@/server/notification";
 
 // ──────────────────────────────────────────────
 // Card Router — CRUD + Move/Reorder
@@ -315,6 +316,20 @@ export const cardRouter = createTRPCRouter({
           assigneeName: assignee?.name ?? "",
         },
       });
+
+      // Phase 7: Notify the assignee (but not if you assign yourself)
+      if (input.userId !== ctx.user.id) {
+        await createNotification(db, {
+          userId: input.userId,
+          type: "ASSIGNMENT",
+          title: "Card Assignment",
+          message: `${ctx.user.name ?? "Someone"} assigned you to "${card?.title ?? "a card"}"`,
+          linkUrl: `/boards/${boardId}`,
+          boardId,
+          cardId: input.cardId,
+        });
+        emitNotification(input.userId);
+      }
 
       emitBoardUpdate(boardId);
       emitActivityUpdate(boardId);
