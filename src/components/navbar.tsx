@@ -14,8 +14,10 @@
 // This is a common pattern: Server Component fetches data →
 // passes it to Client Component as props.
 
+import React from "react";
 import { signOut } from "next-auth/react";
-import { LogOut, User } from "lucide-react";
+import { useTheme } from "next-themes";
+import { LogOut, User, Sun, Moon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -52,6 +54,43 @@ function getInitials(name?: string | null): string {
     .slice(0, 2);
 }
 
+// ─── Theme Toggle Button ───
+// Switches between light and dark mode using next-themes.
+// Shows a Sun icon in dark mode (click to go light) and
+// a Moon icon in light mode (click to go dark).
+//
+// WHY `mounted` CHECK?
+// On the server, next-themes doesn't know the user's preference yet
+// (it's stored in localStorage). If we rendered the icon immediately,
+// we'd get a hydration mismatch: server renders Moon, but client
+// might need Sun. The `mounted` flag ensures we only render the
+// icon after the component mounts (client-side), avoiding the flash.
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => setMounted(true), []);
+
+  return (
+    <button
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+      aria-label="Toggle theme"
+    >
+      {mounted ? (
+        theme === "dark" ? (
+          <Sun className="h-5 w-5" />
+        ) : (
+          <Moon className="h-5 w-5" />
+        )
+      ) : (
+        // Placeholder to prevent layout shift before mount
+        <div className="h-5 w-5" />
+      )}
+    </button>
+  );
+}
+
 export function Navbar({ user }: NavbarProps) {
   return (
     <nav className="border-b bg-background">
@@ -73,6 +112,9 @@ export function Navbar({ user }: NavbarProps) {
         <div className="flex items-center gap-1">
         {/* Phase 7: Notification bell with unread badge */}
         <NotificationBell />
+
+        {/* Phase 8: Dark mode toggle */}
+        <ThemeToggle />
 
         {/*
           DropdownMenu is from shadcn/ui (built on Base UI).
