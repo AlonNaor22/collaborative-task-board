@@ -290,8 +290,26 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
   // ─── Render ───
   if (isLoading) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-        Loading board...
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {[3, 2, 1].map((cardCount, colIndex) => (
+          <div
+            key={colIndex}
+            className="w-72 flex-shrink-0 rounded-lg border bg-muted/30 p-3"
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <div className="h-5 w-24 animate-pulse rounded bg-muted" />
+              <div className="h-5 w-5 animate-pulse rounded bg-muted" />
+            </div>
+            <div className="space-y-2">
+              {Array.from({ length: cardCount }).map((_, i) => (
+                <div key={i} className="rounded-md border bg-card p-3 space-y-2">
+                  <div className="h-4 w-full animate-pulse rounded bg-muted" />
+                  {i === 0 && <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
       </div>
     );
   }

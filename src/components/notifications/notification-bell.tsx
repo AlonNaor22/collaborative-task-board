@@ -49,7 +49,7 @@ export function NotificationBell() {
 
   // Only fetch the list when the popover is open (lazy loading).
   // This avoids unnecessary queries when the bell is just sitting there.
-  const { data: listData } = useQuery({
+  const { data: listData, isLoading: isListLoading } = useQuery({
     ...trpc.notification.list.queryOptions({ limit: 20 }),
     enabled: open,
   });
@@ -135,7 +135,21 @@ export function NotificationBell() {
 
         {/* ─── Notification List ─── */}
         <ScrollArea className="max-h-80">
-          {notifications.length === 0 ? (
+          {isListLoading ? (
+            // Skeleton loading state — pulsing rows that match NotificationItem layout
+            <div className="p-1 space-y-1">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 px-3 py-2.5">
+                  <div className="mt-0.5 h-4 w-4 animate-pulse rounded bg-muted" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3.5 w-3/4 animate-pulse rounded bg-muted" />
+                    <div className="h-3 w-full animate-pulse rounded bg-muted" />
+                  </div>
+                  <div className="h-3 w-10 animate-pulse rounded bg-muted" />
+                </div>
+              ))}
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-8 text-center">
               <Bell className="mb-2 h-8 w-8 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">
