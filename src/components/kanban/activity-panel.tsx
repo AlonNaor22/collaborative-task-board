@@ -35,7 +35,7 @@ export function ActivityPanel({ boardId, onClose }: ActivityPanelProps) {
   const activities = data?.items ?? [];
 
   return (
-    <div className="w-72 shrink-0 rounded-lg border bg-card flex flex-col" style={{ maxHeight: "calc(100vh - 12rem)" }}>
+    <div className="fixed inset-x-0 bottom-0 top-14 z-40 w-full sm:static sm:inset-auto sm:z-auto sm:w-72 shrink-0 rounded-t-lg sm:rounded-lg border bg-card flex flex-col sm:max-h-[calc(100dvh-12rem)]">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-3 py-2">
         <h3 className="text-sm font-semibold">Board Activity</h3>

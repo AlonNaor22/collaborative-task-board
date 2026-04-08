@@ -223,7 +223,7 @@ export function CardDetailModal({
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="max-w-lg overflow-y-auto max-h-[90vh]" showCloseButton>
+      <DialogContent className="max-w-lg overflow-y-auto max-h-[90dvh]" showCloseButton>
         {cardQuery.isLoading ? (
           <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
             Loading...

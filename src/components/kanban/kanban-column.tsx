@@ -123,7 +123,7 @@ export function KanbanColumn({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex w-72 shrink-0 flex-col rounded-lg border bg-muted/40"
+      className="flex w-[85vw] sm:w-72 shrink-0 flex-col rounded-lg border bg-muted/40"
     >
       {/* ─── Column Header ─── */}
       <div className="flex items-center gap-2 px-3 py-2.5">
@@ -173,7 +173,7 @@ export function KanbanColumn({
 
         The `items` array MUST be the IDs in their current display order.
       */}
-      <div className="flex flex-col gap-2 overflow-y-auto px-3 pb-3" style={{ maxHeight: "calc(100vh - 200px)" }}>
+      <div className="flex flex-col gap-2 overflow-y-auto px-3 pb-3" style={{ maxHeight: "calc(100dvh - 200px)" }}>
         <SortableContext
           items={column.cards.map((c) => c.id)}
           strategy={verticalListSortingStrategy}

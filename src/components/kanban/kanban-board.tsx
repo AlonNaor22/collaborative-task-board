@@ -294,7 +294,7 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
         {[3, 2, 1].map((cardCount, colIndex) => (
           <div
             key={colIndex}
-            className="w-72 flex-shrink-0 rounded-lg border bg-muted/30 p-3"
+            className="w-[85vw] sm:w-72 flex-shrink-0 rounded-lg border bg-muted/30 p-3"
           >
             <div className="mb-3 flex items-center justify-between">
               <div className="h-5 w-24 animate-pulse rounded bg-muted" />
@@ -375,7 +375,7 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
 
               {/* Add column button/form */}
               {isOwnerOrAdmin && (
-                <div className="w-72 shrink-0">
+                <div className="w-[85vw] sm:w-72 shrink-0">
                   {isAddingColumn ? (
                     <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3">
                       <Input
@@ -468,7 +468,14 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
 
         {/* ─── Activity Panel (Phase 5) ─── */}
         {showActivity && (
-          <ActivityPanel boardId={boardId} onClose={() => setShowActivity(false)} />
+          <>
+            {/* Backdrop — mobile only. Tap outside the panel to dismiss. */}
+            <div
+              className="fixed inset-0 z-30 bg-black/40 sm:hidden"
+              onClick={() => setShowActivity(false)}
+            />
+            <ActivityPanel boardId={boardId} onClose={() => setShowActivity(false)} />
+          </>
         )}
       </div>
     </div>

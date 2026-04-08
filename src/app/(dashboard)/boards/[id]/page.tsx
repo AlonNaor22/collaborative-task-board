@@ -61,7 +61,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
   return (
     <div className="flex flex-col gap-4">
       {/* ─── Board Header ─── */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         {/* Back to dashboard */}
         <Link
           href="/boards"
@@ -86,7 +86,7 @@ export default async function BoardPage({ params }: BoardPageProps) {
         </span>
 
         {/* Phase 7: Member management + Invite buttons (pushed to the right) */}
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex w-full sm:w-auto sm:ml-auto items-center gap-2">
           <BoardMembersDialog boardId={id} currentUserRole={userRole} />
           {(userRole === "OWNER" || userRole === "ADMIN") && (
             <InviteBoardDialog boardId={id} />
