@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Bell, CheckCheck } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useTRPC } from "@/trpc/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -66,6 +67,9 @@ export function NotificationBell() {
           queryKey: trpc.notification.list.queryKey(),
         });
       },
+      onError: (err) => {
+        toast.error(err.message || "Failed to mark as read");
+      },
     })
   );
 
@@ -78,6 +82,10 @@ export function NotificationBell() {
         queryClient.invalidateQueries({
           queryKey: trpc.notification.list.queryKey(),
         });
+        toast.success("All notifications marked as read");
+      },
+      onError: (err) => {
+        toast.error(err.message || "Failed to mark all as read");
       },
     })
   );

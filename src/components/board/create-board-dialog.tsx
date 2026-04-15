@@ -20,6 +20,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc/client";
 import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,7 +73,7 @@ export function CreateBoardDialog() {
   const trpc = useTRPC();
   const createBoard = useMutation(
     trpc.board.create.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (board) => {
         // Close the dialog
         setOpen(false);
         // Reset form fields for next time
@@ -83,9 +84,10 @@ export function CreateBoardDialog() {
         queryClient.invalidateQueries({ queryKey: trpc.board.list.queryKey() });
         // Also refresh the server component data
         router.refresh();
+        toast.success(`Board "${board.title}" created`);
       },
       onError: (err) => {
-        setError(err.message);
+        toast.error(err.message || "Failed to create board");
       },
     })
   );

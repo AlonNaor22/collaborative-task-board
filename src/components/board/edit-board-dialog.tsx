@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc/client";
 import { useMutation } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,9 +77,10 @@ export function EditBoardDialog({
         onOpenChange(false);
         queryClient.invalidateQueries({ queryKey: trpc.board.list.queryKey() });
         router.refresh();
+        toast.success("Board updated");
       },
       onError: (err) => {
-        setError(err.message);
+        toast.error(err.message || "Failed to update board");
       },
     })
   );
@@ -90,9 +92,10 @@ export function EditBoardDialog({
         onOpenChange(false);
         queryClient.invalidateQueries({ queryKey: trpc.board.list.queryKey() });
         router.refresh();
+        toast.success("Board deleted");
       },
       onError: (err) => {
-        setError(err.message);
+        toast.error(err.message || "Failed to delete board");
       },
     })
   );
