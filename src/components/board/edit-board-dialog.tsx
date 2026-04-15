@@ -10,7 +10,7 @@
 // pre-fills the form. It's opened from a dropdown menu on the
 // board card (the "..." button).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTRPC } from "@/trpc/client";
@@ -50,6 +50,9 @@ interface EditBoardDialogProps {
   isOwner: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  // Which view to show when the dialog opens ("edit" or "delete" confirmation).
+  // Defaults to "edit". Read on each open→close transition.
+  initialView?: "edit" | "delete";
 }
 
 export function EditBoardDialog({
@@ -57,6 +60,7 @@ export function EditBoardDialog({
   isOwner,
   open,
   onOpenChange,
+  initialView = "edit",
 }: EditBoardDialogProps) {
   // ─── State ───
   // Pre-fill with current board values
@@ -64,7 +68,18 @@ export function EditBoardDialog({
   const [description, setDescription] = useState(board.description ?? "");
   const [color, setColor] = useState(board.color);
   const [error, setError] = useState("");
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(
+    initialView === "delete",
+  );
+
+  // Reset the view whenever the dialog (re)opens so that clicking
+  // "Delete board" vs "Edit board" in the card menu shows the right form.
+  useEffect(() => {
+    if (open) {
+      setShowDeleteConfirm(initialView === "delete");
+      setError("");
+    }
+  }, [open, initialView]);
 
   const router = useRouter();
   const queryClient = useQueryClient();

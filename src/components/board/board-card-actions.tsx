@@ -37,29 +37,24 @@ interface BoardCardActionsProps {
 }
 
 export function BoardCardActions({ board, isOwner }: BoardCardActionsProps) {
-  const [editOpen, setEditOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogView, setDialogView] = useState<"edit" | "delete">("edit");
+
+  // Opens the dialog pre-set to either the edit form or the delete confirm.
+  function openDialog(view: "edit" | "delete") {
+    setDialogView(view);
+    setDialogOpen(true);
+  }
 
   return (
     <>
       <DropdownMenu>
-        <DropdownMenuTrigger
-          className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-accent focus-visible:opacity-100 group-hover:opacity-100"
-          onClick={(e) => {
-            // Prevent the card's Link from triggering navigation
-            // when clicking the "..." button.
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-        >
+        <DropdownMenuTrigger className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-accent focus-visible:opacity-100 group-hover:opacity-100">
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent
-          align="end"
-          // Stop clicks inside the dropdown from bubbling up to the Link
-          onClick={(e) => e.preventDefault()}
-        >
-          <DropdownMenuItem onClick={() => setEditOpen(true)}>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => openDialog("edit")}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit board
           </DropdownMenuItem>
@@ -69,7 +64,7 @@ export function BoardCardActions({ board, isOwner }: BoardCardActionsProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onClick={() => setEditOpen(true)}
+                onClick={() => openDialog("delete")}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete board
@@ -84,8 +79,9 @@ export function BoardCardActions({ board, isOwner }: BoardCardActionsProps) {
       <EditBoardDialog
         board={board}
         isOwner={isOwner}
-        open={editOpen}
-        onOpenChange={setEditOpen}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        initialView={dialogView}
       />
     </>
   );

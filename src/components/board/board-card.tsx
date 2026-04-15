@@ -32,21 +32,13 @@ interface BoardCardProps {
 }
 
 export function BoardCard({ board, isOwner }: BoardCardProps) {
+  // BoardCardActions is a SIBLING of Link, not a child. If it were nested
+  // inside Link, React synthetic events from the portalled dropdown would
+  // bubble through the component tree to Link's onClick and trigger
+  // navigation when clicking menu items. Keeping it outside sidesteps this.
   return (
-    <Link href={`/boards/${board.id}`}>
-      {/*
-        The card is wrapped in a Link, making the whole thing clickable.
-
-        The styling breakdown:
-        - group: lets child elements respond to parent hover (group-hover:)
-        - rounded-lg: rounded corners
-        - border: subtle border for definition
-        - bg-card: uses the theme's card background color
-        - shadow-sm: subtle shadow for depth
-        - hover:shadow-md: slightly bigger shadow on hover (feels interactive)
-        - transition-shadow: smooth shadow animation
-      */}
-      <div className="group relative overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md">
+    <div className="group relative overflow-hidden rounded-lg border bg-card shadow-sm transition-shadow hover:shadow-md">
+      <Link href={`/boards/${board.id}`} className="block">
         {/* ─── Color Accent Bar ───
           A thin colored bar at the top of the card.
           This gives each board a visual identity at a glance,
@@ -57,9 +49,6 @@ export function BoardCard({ board, isOwner }: BoardCardProps) {
           className="h-2 w-full"
           style={{ backgroundColor: board.color }}
         />
-
-        {/* ─── Actions Dropdown (Client Component Island) ─── */}
-        <BoardCardActions board={board} isOwner={isOwner} />
 
         {/* ─── Card Content ─── */}
         <div className="p-4">
@@ -87,7 +76,11 @@ export function BoardCard({ board, isOwner }: BoardCardProps) {
             </span>
           </div>
         </div>
-      </div>
-    </Link>
+      </Link>
+
+      {/* ─── Actions Dropdown ───
+          Rendered outside the Link so menu clicks never bubble into it. */}
+      <BoardCardActions board={board} isOwner={isOwner} />
+    </div>
   );
 }
