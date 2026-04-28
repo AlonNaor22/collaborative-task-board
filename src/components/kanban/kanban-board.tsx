@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -20,7 +20,7 @@ import {
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import { createPortal } from "react-dom";
-import { Plus, X, Check, Activity } from "lucide-react";
+import { Plus, X, Check, Activity, Search } from "lucide-react";
 import { useTRPC } from "@/trpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -32,6 +32,9 @@ import { CardDetailModal } from "./card-detail-modal";
 import { ActivityPanel } from "./activity-panel";
 import { useBoardStore, type ColumnData, type CardData } from "@/hooks/use-board-store";
 import { useSocket } from "@/hooks/use-socket";
+import { useBoardFilters } from "@/hooks/use-board-filters";
+import { FilterBar } from "./filter-bar";
+import { isPast, isToday, addDays } from "date-fns";
 import { BoardPresence } from "@/components/board/board-presence";
 import { ConnectionStatusIndicator } from "@/components/board/connection-status";
 
@@ -95,6 +98,73 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
       setColumns(serverColumns as ColumnData[]);
     }
   }, [serverColumns, setColumns]);
+
+  // ─── Filters (Phase 8E) ───
+  const { filters, hasActiveFilters, clearAll: clearFilters } = useBoardFilters();
+
+  // Unique assignees derived from cards currently on the board.
+  // We build this from localColumns so it stays fresh as cards are added/edited
+  // without needing an extra tRPC call.
+  const uniqueMembers = useMemo(() => {
+    const seen = new Set<string>();
+    const members: Array<{ id: string; name: string | null; image: string | null }> = [];
+    for (const col of localColumns) {
+      for (const card of col.cards) {
+        for (const { user } of card.assignees) {
+          if (!seen.has(user.id)) {
+            seen.add(user.id);
+            members.push(user);
+          }
+        }
+      }
+    }
+    return members;
+  }, [localColumns]);
+
+  // visibleColumns = localColumns with cards filtered by the active filters.
+  // DnD logic still operates on localColumns (full data) — only rendering
+  // uses visibleColumns, so drag-and-drop remains stable while filtering.
+  const visibleColumns = useMemo(() => {
+    if (!hasActiveFilters) return localColumns;
+
+    const now = new Date();
+    const in7days = addDays(now, 7);
+
+    return localColumns.map((col) => ({
+      ...col,
+      cards: col.cards.filter((card) => {
+        if (filters.q) {
+          const q = filters.q.toLowerCase();
+          const matches =
+            card.title.toLowerCase().includes(q) ||
+            (card.description?.toLowerCase().includes(q) ?? false);
+          if (!matches) return false;
+        }
+        if (filters.labelIds.length > 0) {
+          const cardLabelIds = card.labels.map((l) => l.labelId);
+          if (!filters.labelIds.some((id) => cardLabelIds.includes(id))) return false;
+        }
+        if (filters.assigneeIds.length > 0) {
+          const cardAssigneeIds = card.assignees.map((a) => a.userId);
+          if (!filters.assigneeIds.some((id) => cardAssigneeIds.includes(id))) return false;
+        }
+        if (filters.due !== "all") {
+          if (filters.due === "none") {
+            if (card.dueDate) return false;
+          } else if (filters.due === "overdue") {
+            if (!card.dueDate) return false;
+            const d = new Date(card.dueDate);
+            if (!isPast(d) || isToday(d)) return false;
+          } else if (filters.due === "soon") {
+            if (!card.dueDate) return false;
+            const d = new Date(card.dueDate);
+            if (d < now || d > in7days) return false;
+          }
+        }
+        return true;
+      }),
+    }));
+  }, [localColumns, filters, hasActiveFilters]);
 
   // ─── Card detail modal state ───
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -336,6 +406,9 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
         </Button>
       </div>
 
+      {/* ─── Filter bar ─── */}
+      <FilterBar boardId={boardId} members={uniqueMembers} />
+
       {/* ─── Board area: columns + optional activity panel ─── */}
       <div className="flex gap-4 items-start">
         {/* Main kanban scroll area */}
@@ -356,7 +429,7 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
                 items={localColumns.map((c) => c.id)}
                 strategy={horizontalListSortingStrategy}
               >
-                {localColumns.map((column) => (
+                {visibleColumns.map((column) => (
                   <KanbanColumn
                     key={column.id}
                     column={column}
@@ -372,6 +445,21 @@ export function KanbanBoard({ boardId, userRole, currentUserId }: KanbanBoardPro
                   />
                 ))}
               </SortableContext>
+
+              {/* ─── Filter empty state ─── */}
+              {hasActiveFilters &&
+                visibleColumns.every((c) => c.cards.length === 0) && (
+                  <div className="flex w-64 shrink-0 flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-8 text-center text-muted-foreground">
+                    <Search className="h-7 w-7 opacity-40" />
+                    <p className="text-sm font-medium">No cards match</p>
+                    <button
+                      className="text-xs underline-offset-2 hover:underline"
+                      onClick={clearFilters}
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
 
               {/* Add column button/form */}
               {isOwnerOrAdmin && (
