@@ -52,7 +52,7 @@ const VALID_DUE: readonly DueFilter[] = ["all", "overdue", "soon", "none"] as co
 // Parse URLSearchParams → typed BoardFilters.
 // We accept anything that looks like URLSearchParams so this is easy to test
 // in isolation later (no React needed).
-function parseFilters(params: URLSearchParams | ReadonlyURLSearchParams): BoardFilters {
+export function parseFilters(params: URLSearchParams | ReadonlyURLSearchParams): BoardFilters {
   const q = params.get("q") ?? "";
   const labelIds = params.getAll("label");        // ?label=A&label=B → ["A","B"]
   const assigneeIds = params.getAll("assignee");
