@@ -91,15 +91,21 @@ collaborative-task-board/
 │   └── trpc/               # Client-side tRPC provider + hooks
 ```
 
+## Running Tests
+
+```bash
+npm test
+```
+
+Tests cover board logic, authentication, utility functions, and notification handling.
+
 ## Roadmap
 
-| Phase | Status |
-|-------|--------|
-| Phase 1: Scaffolding + Auth | ✅ Complete |
-| Phase 2: Board CRUD + Dashboard | ✅ Complete |
-| Phase 3: Kanban + Drag & Drop | ✅ Complete |
-| Phase 4: Card Details (labels, assignees, due dates) | ✅ Complete |
-| Phase 5: Comments + Activity Log | Upcoming |
-| Phase 6: Real-Time with WebSockets (Socket.io) | Upcoming |
-| Phase 7: Notifications + Board Sharing | Upcoming |
-| Phase 8: Polish, Testing, Dark Mode | Upcoming |
+| Phase | Feature | Status |
+|-------|---------|--------|
+| 1 | Scaffolding + Auth | ✅ Complete |
+| 2 | Board CRUD + Dashboard | ✅ Complete |
+| 3 | Kanban + Drag & Drop | ✅ Complete |
+| 4 | Card Details (labels, assignees, due dates) | ✅ Complete |
+
+Planned features tracked in the [issues tab](../../issues).
